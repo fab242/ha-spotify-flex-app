@@ -1,0 +1,3 @@
+#!/command/with-contenv bash
+until [ -S /run/avahi-daemon/socket ]; do sleep 0.5; done
+exec /usr/sbin/owntone -f -c /config/owntone/owntone.conf -P /run/owntone.pid

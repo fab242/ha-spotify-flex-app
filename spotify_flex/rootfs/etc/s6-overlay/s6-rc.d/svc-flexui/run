@@ -1,5 +1,3 @@
-#!/usr/bin/with-contenv bash
-# shellcheck shell=bash
-# Web interface (Home Assistant ingress) and orchestration.
+#!/command/with-contenv bash
 cd /opt/flex
 exec python3 -u -m flex.server

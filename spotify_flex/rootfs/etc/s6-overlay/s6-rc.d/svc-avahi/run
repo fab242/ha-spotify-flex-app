@@ -1,0 +1,3 @@
+#!/command/with-contenv bash
+until [ -S /run/dbus/system_bus_socket ]; do sleep 0.5; done
+exec avahi-daemon --no-chroot --no-drop-root -f /etc/avahi/flex-avahi.conf

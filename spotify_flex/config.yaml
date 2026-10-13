@@ -1,5 +1,5 @@
 name: Spotify Flex
-version: "1.0.0"
+version: "1.0.1"
 slug: spotify_flex
 description: Eigenständiger Spotify-Player mit Connect-Empfänger und AirPlay-Ausgabe an HomePods
 url: https://github.com/fab242/ha-spotify-flex-app

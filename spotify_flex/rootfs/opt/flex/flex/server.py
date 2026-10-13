@@ -15,6 +15,7 @@ from .api import SpotifyAuthError, SpotifyClient, SpotifyError, valid_id
 from .browse import browse
 from .const import INGRESS_PORT, LIBRESPOT_STATE, OPTIONS_FILE, REDIRECT_URI, VERSION
 from .oauth import WebAuth
+from . import netheal
 from .receiver import Librespot, OwnTone
 
 logging.basicConfig(level=logging.INFO, format="[spotify-flex] %(levelname)s %(message)s")
@@ -64,7 +65,19 @@ class App:
         self.tasks = [
             asyncio.create_task(self.receiver.events(self.on_event, self.stop)),
             asyncio.create_task(self.poll_status()),
+            asyncio.create_task(self.heal_loop()),
         ]
+
+    async def heal_loop(self) -> None:
+        """Re-check unreachable Spotify servers every 30 minutes (first run is at boot)."""
+        while not self.stop.is_set():
+            await asyncio.sleep(1800)
+            try:
+                report = await asyncio.get_running_loop().run_in_executor(None, netheal.heal)
+                if report.get("overrides"):
+                    _LOGGER.info("netheal overrides: %s", report["overrides"])
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("netheal failed: %s", err)
 
     async def shutdown(self, _app: web.Application) -> None:
         self.stop.set()
@@ -175,7 +188,15 @@ class App:
             "player": self.player_view(),
             "speakers": speakers,
             "speaker_error": speaker_error,
+            "network": self.network_report(),
         }
+
+    @staticmethod
+    def network_report() -> dict | None:
+        try:
+            return json.loads(netheal.REPORT_FILE.read_text())
+        except (OSError, ValueError):
+            return None
 
     def user_id(self) -> str:
         return (self.status or {}).get("username") or ""
@@ -407,8 +428,16 @@ def build_app() -> web.Application:
     @r.post("/api/speakers/{oid}")
     async def api_speaker_set(request):
         data = await body(request)
-        await flex.owntone.set_output(request.match_info["oid"], selected=data.get("selected"),
-                                      volume=data.get("volume"), pin=data.get("pin"))
+        try:
+            await flex.owntone.set_output(request.match_info["oid"], selected=data.get("selected"),
+                                          volume=data.get("volume"), pin=data.get("pin"))
+        except SpotifyError as err:
+            if err.status == 400 and data.get("selected"):
+                raise SpotifyError(
+                    "Der Lautsprecher hat die Verbindung abgelehnt. Bei HomePods in der Home-App unter "
+                    "Zuhause-Einstellungen → Lautsprecher & TV den Zugriff auf „Jeder im selben Netzwerk“ "
+                    "stellen und erneut einschalten.", 409) from err
+            raise
         return ok({"speakers": await flex.owntone.outputs()})
 
     # ---- other Spotify Connect devices (optional hand-over)

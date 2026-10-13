@@ -14,3 +14,7 @@
 
 ## 1.0.3
 - Anmeldecode wird sofort angezeigt (go-librespot beantwortet /status erst nach dem Login).
+
+## 1.0.4
+- Netzwerk-Umgehung: nicht erreichbare Spotify-Server (z. B. gew4-spclient) werden automatisch auf eine funktionierende Spotify-IP umgeleitet; Prüfung beim Start und alle 30 Minuten.
+- Verständliche Meldung, wenn ein HomePod die Verbindung ablehnt.

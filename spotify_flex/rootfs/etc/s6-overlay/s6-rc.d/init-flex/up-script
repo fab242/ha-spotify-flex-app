@@ -79,4 +79,7 @@ server:
 EOF
 
 chown -R owntone:owntone /config/owntone /music
+# --- route around Spotify servers this network cannot reach ------------------
+( cd /opt/flex && timeout 60 python3 -m flex.netheal ) || echo "[spotify-flex] netheal skipped"
+
 echo "[spotify-flex] configuration ready"

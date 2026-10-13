@@ -506,6 +506,17 @@ async function showQueue() {
     <div class="btn-row"><button class="btn" data-act="close">Schließen</button></div>`);
 }
 
+function netHtml() {
+  const n = S.state && S.state.network;
+  if (!n) return "";
+  const ov = Object.entries(n.overrides || {});
+  const dead = (n.unreachable || []).filter((u) => !(n.overrides || {})[u.host]);
+  if (!ov.length && !dead.length) return `<p class="hint">Netzwerk: alle ${n.checked} Spotify-Server erreichbar.</p>`;
+  return `<h3 style="margin-top:16px">Netzwerk</h3>
+    ${ov.map(([h, ip]) => `<p class="hint">${esc(h)} ist aus deinem Netz nicht erreichbar – wird über ${esc(ip)} umgeleitet.</p>`).join("")}
+    ${dead.map((u) => `<p class="hint err">${esc(u.host)} (${esc(u.ips.join(", "))}) ist nicht erreichbar, keine Ausweich-IP gefunden.</p>`).join("")}`;
+}
+
 async function openSettings() {
   let devices = [], selfId = null, devErr = null;
   if (S.state && S.state.web.connected) {
@@ -513,6 +524,7 @@ async function openSettings() {
   }
   const card = sheet(`<h3>Einstellungen</h3>
     <button class="menu-item" data-s="setup">${svg("edit")}<span>Einrichtung &amp; Anmeldungen</span></button>
+    ${netHtml()}
     <h3 style="margin-top:16px">Spotify-Connect-Geräte</h3>
     <p class="hint">Wiedergabe von einem anderen Gerät hierher holen oder dorthin abgeben.</p>
     ${devErr ? `<p class="hint err">${esc(devErr)}</p>` : devices.map((d) => `<button class="menu-item" data-dev="${esc(d.id)}">${svg("device")}<span>${esc(d.name)}${d.id === selfId ? " (diese App)" : ""}${d.is_active ? " · aktiv" : ""}</span></button>`).join("") || `<p class="hint">Keine Geräte gemeldet.</p>`}

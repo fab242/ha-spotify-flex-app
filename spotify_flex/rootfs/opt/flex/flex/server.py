@@ -433,10 +433,15 @@ def build_app() -> web.Application:
                                           volume=data.get("volume"), pin=data.get("pin"))
         except SpotifyError as err:
             if err.status == 400 and data.get("selected"):
+                oid = request.match_info["oid"]
+                spk = next((s for s in await flex.owntone.outputs() if s["id"] == oid), None)
+                if spk and spk["needs_pin"] and not data.get("pin"):
+                    raise SpotifyError(f"{spk['name']} zeigt jetzt eine PIN an – bitte erneut einschalten "
+                                       "und die PIN eingeben.", 409) from err
                 raise SpotifyError(
-                    "Der Lautsprecher hat die Verbindung abgelehnt. Bei HomePods in der Home-App unter "
-                    "Zuhause-Einstellungen → Lautsprecher & TV den Zugriff auf „Jeder im selben Netzwerk“ "
-                    "stellen und erneut einschalten.", 409) from err
+                    f"{spk['name'] if spk else 'Der Lautsprecher'} konnte nicht verbunden werden. "
+                    "Details stehen im Protokoll der App (Einstellungen → Apps → Spotify Flex → Protokoll).",
+                    409) from err
             raise
         return ok({"speakers": await flex.owntone.outputs()})
 

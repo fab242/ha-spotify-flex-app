@@ -25,3 +25,8 @@
 ## 1.0.6
 
 - HomePods mit HomePod-Software 27 lehnten die Verbindung mit „403 Forbidden“ ab: OwnTone meldet sich jetzt mit einem AirPlay-User-Agent (owntone #2042).
+
+## 1.0.7
+
+- Startprüfung, ob die AirPlay-2-Zeitports 319/320 frei sind (Music Assistant belegt sie ggf.).
+- OwnTone protokolliert Warnungen; klarere Meldung, wenn ein Lautsprecher nicht verbindet (PIN, z. B. Apple TV).

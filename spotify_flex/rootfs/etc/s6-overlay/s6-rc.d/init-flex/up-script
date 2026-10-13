@@ -28,7 +28,7 @@ general {
 	db_path = "/config/owntone/songs3.db"
 	cache_dir = "/config/owntone"
 	logfile = "/config/owntone/owntone.log"
-	loglevel = log
+	loglevel = warning
 	admin_password = ""
 	trusted_networks = { "localhost" }
 	ipv6 = no
@@ -84,5 +84,26 @@ EOF
 chown -R owntone:owntone /config/owntone /music
 # --- route around Spotify servers this network cannot reach ------------------
 ( cd /opt/flex && timeout 60 python3 -m flex.netheal ) || echo "[spotify-flex] netheal skipped"
+
+# --- AirPlay 2 needs the PTP ports 319/320 on the host -------------------------
+python3 - <<'PY' || true
+ports = {319: [], 320: []}
+for f in ("/proc/net/udp", "/proc/net/udp6"):
+    try:
+        for line in open(f).read().splitlines()[1:]:
+            local = line.split()[1]
+            port = int(local.rsplit(":", 1)[1], 16)
+            if port in ports:
+                ports[port].append(local)
+    except OSError:
+        pass
+busy = [p for p, v in ports.items() if v]
+if busy:
+    print(f"[spotify-flex] WARNUNG: PTP-Port(s) {busy} sind schon von einem anderen Programm belegt "
+          "(z. B. Music Assistant mit AirPlay). Dann kann OwnTone keine AirPlay-2-Uhr betreiben "
+          "und HomePods lassen sich nicht aktivieren.")
+else:
+    print("[spotify-flex] PTP-Ports 319/320 sind frei")
+PY
 
 echo "[spotify-flex] configuration ready"

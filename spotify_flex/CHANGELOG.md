@@ -21,3 +21,7 @@
 
 ## 1.0.5
 - Netzwerk-Umgehung leitet keine Spotify-Zugangspunkte (ap-*) mehr um – die haben ein eigenes Protokoll.
+
+## 1.0.6
+
+- HomePods mit HomePod-Software 27 lehnten die Verbindung mit „403 Forbidden“ ab: OwnTone meldet sich jetzt mit einem AirPlay-User-Agent (owntone #2042).

@@ -32,6 +32,9 @@ general {
 	admin_password = ""
 	trusted_networks = { "localhost" }
 	ipv6 = no
+	# HomePod Software 27 validates the AirPlay User-Agent (owntone issue #2042).
+	# OwnTone 29.3 sends general.user_agent to AirPlay devices.
+	user_agent = "AirPlay/999.0.0"
 }
 
 library {

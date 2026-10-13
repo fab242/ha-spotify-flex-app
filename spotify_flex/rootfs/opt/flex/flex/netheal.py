@@ -53,15 +53,17 @@ def _tls_ok(ip: str, host: str, port: int = 443) -> bool:
 def _apresolve_hosts() -> list[str]:
     try:
         with urllib.request.urlopen(
-            "https://apresolve.spotify.com/?type=spclient&type=dealer&type=accesspoint", timeout=10) as resp:
+            "https://apresolve.spotify.com/?type=spclient&type=dealer", timeout=10) as resp:
             data = json.load(resp)
     except Exception:  # noqa: BLE001
         return []
     hosts = []
-    for kind in ("spclient", "dealer", "accesspoint"):
+    # Access points (ap-*.spotify.com) are NOT HTTPS front ends - they speak Spotify's
+    # own protocol and have their own fallback list, so they are never pinned.
+    for kind in ("spclient", "dealer"):
         for hp in data.get(kind, [])[:6]:
             host, _, port = hp.rpartition(":")
-            if port == "443" and host and host not in hosts:
+            if port == "443" and host and host not in hosts and not host.startswith("ap-"):
                 hosts.append(host)
     return hosts
 

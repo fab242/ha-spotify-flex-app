@@ -18,3 +18,6 @@
 ## 1.0.4
 - Netzwerk-Umgehung: nicht erreichbare Spotify-Server (z. B. gew4-spclient) werden automatisch auf eine funktionierende Spotify-IP umgeleitet; Prüfung beim Start und alle 30 Minuten.
 - Verständliche Meldung, wenn ein HomePod die Verbindung ablehnt.
+
+## 1.0.5
+- Netzwerk-Umgehung leitet keine Spotify-Zugangspunkte (ap-*) mehr um – die haben ein eigenes Protokoll.

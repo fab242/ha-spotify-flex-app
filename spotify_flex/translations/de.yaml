@@ -1,0 +1,18 @@
+configuration:
+  device_name:
+    name: Gerätename
+    description: Unter diesem Namen erscheint der Empfänger bei Spotify.
+  client_id:
+    name: Client-ID
+    description: Client-ID deiner App aus dem Spotify-Entwickler-Dashboard (für Bibliothek, Playlists und Suche). Kein Secret nötig.
+  bitrate:
+    name: Bitrate
+    description: Streaming-Qualität in kbit/s.
+  normalisation:
+    name: Lautstärke angleichen
+    description: Gleicht laute und leise Titel an (Spotify-Normalisierung).
+  zeroconf:
+    name: Im Netzwerk sichtbar
+    description: Zusätzlich per Zeroconf in der Spotify-App im WLAN anbieten.
+  log_level:
+    name: Protokollstufe

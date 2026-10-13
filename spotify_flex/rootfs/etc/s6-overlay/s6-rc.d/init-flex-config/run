@@ -1,0 +1,81 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+# Prepare OwnTone + go-librespot from the Home Assistant app options.
+set -e
+
+OPTIONS=/data/options.json
+opt() { python3 -c "import json,sys;d=json.load(open('$OPTIONS'));v=d.get('$1','$2');print(str(v).lower() if isinstance(v,bool) else v)"; }
+
+DEVICE_NAME="$(opt device_name 'Home Flex')"
+BITRATE="$(opt bitrate 320)"
+NORMALISATION="$(opt normalisation true)"
+ZEROCONF="$(opt zeroconf false)"
+LOG_LEVEL="$(opt log_level info)"
+
+echo "[spotify-flex] device '${DEVICE_NAME}', bitrate ${BITRATE}, zeroconf ${ZEROCONF}"
+
+# --- audio pipe between go-librespot and OwnTone -----------------------------
+mkdir -p /music /config/owntone /config/go-librespot /data
+[ -p /music/spotify ] || { rm -f /music/spotify; mkfifo /music/spotify; }
+chmod 666 /music/spotify
+
+# --- OwnTone: only the pipe as library, only localhost may control it --------
+cat > /config/owntone.conf <<EOF
+general {
+	uid = "abc"
+	db_path = "/config/owntone/songs3.db"
+	cache_dir = "/config/owntone"
+	logfile = "/config/owntone/owntone.log"
+	loglevel = log
+	admin_password = ""
+	trusted_networks = { "localhost" }
+	ipv6 = no
+}
+
+library {
+	name = "Spotify Flex"
+	port = 3689
+	directories = { "/music" }
+	pipe_autostart = true
+	filescan_disable = false
+}
+
+audio {
+	nickname = "Spotify Flex"
+	type = "disabled"
+}
+
+mpd {
+	port = 0
+}
+EOF
+ln -sf /config/owntone.conf /etc/owntone.conf
+
+# --- go-librespot -------------------------------------------------------------
+NORM_DISABLED=false
+[ "${NORMALISATION}" = "true" ] || NORM_DISABLED=true
+cat > /config/go-librespot/config.yml <<EOF
+log_level: ${LOG_LEVEL}
+log_disable_timestamp: true
+device_name: "${DEVICE_NAME}"
+device_type: speaker
+bitrate: ${BITRATE}
+audio_backend: pipe
+audio_output_pipe: /music/spotify
+audio_output_pipe_format: s16le
+initial_volume: 60
+volume_steps: 100
+normalisation_disabled: ${NORM_DISABLED}
+zeroconf_enabled: ${ZEROCONF}
+zeroconf_backend: avahi
+credentials:
+  type: device_auth
+server:
+  enabled: true
+  address: 127.0.0.1
+  port: 3678
+  image_size: large
+EOF
+
+lsiown -R abc:abc /config/owntone /config/go-librespot /music
+echo "[spotify-flex] configuration ready"

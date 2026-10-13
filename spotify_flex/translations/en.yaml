@@ -1,0 +1,18 @@
+configuration:
+  device_name:
+    name: Device name
+    description: Name of the receiver shown in Spotify.
+  client_id:
+    name: Client ID
+    description: Client ID of your Spotify developer app (library, playlists, search). No secret needed.
+  bitrate:
+    name: Bitrate
+    description: Streaming quality in kbit/s.
+  normalisation:
+    name: Normalisation
+    description: Even out loud and quiet tracks.
+  zeroconf:
+    name: Discoverable on network
+    description: Also advertise the receiver via Zeroconf to Spotify apps on the LAN.
+  log_level:
+    name: Log level

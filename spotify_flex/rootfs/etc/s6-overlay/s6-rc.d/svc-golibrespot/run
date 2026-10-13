@@ -1,0 +1,6 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+# Spotify Connect receiver; audio goes into the OwnTone pipe.
+export LD_LIBRARY_PATH=/opt/golibrespot/lib
+export HOME=/config/go-librespot
+exec s6-setuidgid abc /opt/golibrespot/go-librespot --config_dir /config/go-librespot

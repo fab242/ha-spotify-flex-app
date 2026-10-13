@@ -1,0 +1,37 @@
+{
+  "href": "https://api.spotify.com/v1/playlists/PL1/items?offset=0&limit=2",
+  "limit": 2,
+  "offset": 0,
+  "total": 5,
+  "next": "https://api.spotify.com/v1/playlists/PL1/items?offset=2&limit=2",
+  "previous": null,
+  "items": [
+    {
+      "added_at": "2026-01-01T10:00:00Z",
+      "added_by": {"id": "someone"},
+      "is_local": false,
+      "primary_color": null,
+      "item": {
+        "type": "track",
+        "track": true,
+        "episode": false,
+        "id": "TR1",
+        "uri": "spotify:track:TR1",
+        "name": "Erster Titel",
+        "duration_ms": 201000,
+        "explicit": false,
+        "is_playable": true,
+        "album": {"type": "album", "id": "AL1", "uri": "spotify:album:AL1", "name": "Album Eins",
+                  "images": [{"url": "https://i.scdn.co/640", "width": 640}, {"url": "https://i.scdn.co/300", "width": 300}]},
+        "artists": [{"type": "artist", "name": "Künstler A"}, {"type": "artist", "name": "Künstler B"}]
+      },
+      "video_thumbnail": {}
+    },
+    {
+      "added_at": "2026-01-02T10:00:00Z",
+      "is_local": true,
+      "item": {"type": "track", "track": true, "episode": false, "id": null, "uri": "spotify:local:x:y:z:120",
+               "name": "Meine Datei", "album": {"name": "", "images": []}, "artists": []}
+    }
+  ]
+}

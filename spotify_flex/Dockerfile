@@ -31,7 +31,8 @@ RUN curl -fsSL -o /tmp/owntone.tar.xz \
       --without-alsa --without-pulseaudio --without-libwebsockets --with-avahi \
  && make -j"$(nproc)" \
  && make DESTDIR=/out install \
- && rm -rf /out/usr/share /out/usr/include /out/var /out/usr/lib/owntone/*.la /out/etc
+ && rm -rf /out/usr/share/doc /out/usr/share/man /out/usr/include /out/var /out/usr/lib/owntone/*.la /out/etc \
+ && mkdir -p /out/usr/share/owntone/htdocs
 
 # --- go-librespot -------------------------------------------------------------
 RUN git clone --depth 1 --branch "${GLR_VERSION}" https://github.com/devgianlu/go-librespot /src/go-librespot \
@@ -54,7 +55,7 @@ COPY --from=build /runtime-deps.txt /tmp/runtime-deps.txt
 RUN apk add --no-cache python3 py3-aiohttp avahi dbus $(cat /tmp/runtime-deps.txt) \
  && { addgroup -S owntone 2>/dev/null || true; } \
  && { adduser -S -D -H -h /var/empty -G owntone owntone 2>/dev/null || true; } \
- && rm -f /tmp/runtime-deps.txt
+ && rm -f /tmp/runtime-deps.txt /etc/avahi/services/*.service
 
 COPY --from=build /out/ /
 COPY rootfs /

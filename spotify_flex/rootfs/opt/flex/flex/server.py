@@ -52,6 +52,7 @@ class App:
         self.sockets: set[web.WebSocketResponse] = set()
         self.stop = asyncio.Event()
         self.tasks: list[asyncio.Task] = []
+        self.auth_pending: dict | None = None  # device-code login in progress
 
     # ------------------------------------------------------------ lifecycle
     async def start(self, _app: web.Application) -> None:
@@ -85,9 +86,16 @@ class App:
 
     async def refresh_status(self, broadcast: bool = False) -> dict:
         try:
-            self.status = await self.receiver.status()
+            self.auth_pending = await self.receiver.auth_code()
         except SpotifyError:
-            self.status = None
+            self.auth_pending = None
+        if self.auth_pending:
+            self.status = None  # /status would block until the login is done
+        else:
+            try:
+                self.status = await self.receiver.status()
+            except SpotifyError:
+                self.status = None
         if broadcast:
             await self.broadcast({"type": "status", "data": self.player_view()})
         return self.status or {}
@@ -143,19 +151,16 @@ class App:
         }
 
     async def state(self) -> dict:
-        receiver_ok, auth_code, logged_in = False, None, False
-        try:
-            root = await self.receiver.root()
-            receiver_ok = True
-            logged_in = bool(root.get("playback_ready"))
-        except SpotifyError:
-            pass
-        if receiver_ok and not logged_in:
-            try:
-                auth_code = await self.receiver.auth_code()
-            except SpotifyError:
-                auth_code = None
         await self.refresh_status()
+        auth_code = self.auth_pending
+        receiver_ok, logged_in = bool(auth_code), False
+        if not auth_code:
+            try:
+                root = await self.receiver.root()
+                receiver_ok = True
+                logged_in = bool(root.get("playback_ready")) if isinstance(root, dict) else False
+            except SpotifyError:
+                pass
         speakers, speaker_error = [], None
         try:
             speakers = await self.owntone.outputs()

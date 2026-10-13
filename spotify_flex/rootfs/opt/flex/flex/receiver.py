@@ -16,9 +16,10 @@ TIMEOUT = aiohttp.ClientTimeout(total=10)
 
 
 async def _call(session: aiohttp.ClientSession, method: str, url: str, body: Any = None,
-                params: dict | None = None, what: str = "Empfänger") -> Any:
+                params: dict | None = None, what: str = "Empfänger", timeout: float | None = None) -> Any:
     try:
-        async with session.request(method, url, json=body, params=params, timeout=TIMEOUT,
+        async with session.request(method, url, json=body, params=params,
+                                   timeout=aiohttp.ClientTimeout(total=timeout) if timeout else TIMEOUT,
                                    allow_redirects=False) as resp:
             text = await resp.text()
             if resp.status == 204 or not text:
@@ -42,14 +43,16 @@ class Librespot:
     async def _post(self, path: str, body: Any = None) -> Any:
         return await _call(self._s, "POST", LIBRESPOT_URL + path, body)
 
+    # NOTE: while go-librespot waits for the device-code login it does not answer
+    # "/" or "/status" at all (the request blocks); only "/auth/code" responds.
     async def root(self) -> dict:
-        return await _call(self._s, "GET", LIBRESPOT_URL + "/") or {}
+        return await _call(self._s, "GET", LIBRESPOT_URL + "/", timeout=3) or {}
 
     async def status(self) -> dict | None:
-        return await _call(self._s, "GET", LIBRESPOT_URL + "/status")
+        return await _call(self._s, "GET", LIBRESPOT_URL + "/status", timeout=4)
 
     async def auth_code(self) -> dict | None:
-        return await _call(self._s, "GET", LIBRESPOT_URL + "/auth/code")
+        return await _call(self._s, "GET", LIBRESPOT_URL + "/auth/code", timeout=3)
 
     async def play(self, uri: str, skip_to_uri: str | None = None, position: int | None = None) -> None:
         body: dict[str, Any] = {"uri": valid_uri(uri)}

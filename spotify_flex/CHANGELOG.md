@@ -11,3 +11,6 @@
 ## 1.0.2
 - OwnTone: fehlendes htdocs-Verzeichnis ergänzt (Absturz beim Start behoben).
 - Avahi: keine SSH-Dienste mehr veröffentlichen.
+
+## 1.0.3
+- Anmeldecode wird sofort angezeigt (go-librespot beantwortet /status erst nach dem Login).

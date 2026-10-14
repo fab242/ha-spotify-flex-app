@@ -49,3 +49,8 @@
 ## 1.2.2
 
 - Player-Kachel: Lautsprecher-Anzeige oben links entfernt (Auswahl über den Lautsprecher-Knopf).
+
+## 1.3.0
+
+- Liedtext mit springendem Punkt: landet auf jedem Wort, wenn es gesungen wird (Wortzeiten aus erweitertem LRC, sonst nach Silben geschätzt); gesungene Wörter werden dunkel.
+- Genauere Synchronisierung: Uhrabweichung zwischen Browser und Home Assistant wird ausgeglichen; Knopf „Takt“ misst den Versatz, wenn man beim Zeilenanfang tippt.

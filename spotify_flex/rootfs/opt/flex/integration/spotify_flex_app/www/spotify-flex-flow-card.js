@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.2.2";
+const CARD_VERSION = "1.3.0";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -67,14 +67,52 @@ const TABS = [
 ];
 const NODE = "flex:node:";
 
+const TS = /\[(\d+):(\d+(?:[.,]\d+)?)\]/g;
+const WTS = /<(\d+):(\d+(?:[.,]\d+)?)>/g;
+const toMs = (m, sec) => (Number(m) * 60 + Number(String(sec).replace(",", "."))) * 1000;
+// grobe Silbenzahl (dt./engl.): Vokalgruppen zählen
+const syllables = (w) => Math.max(1, (String(w).toLowerCase().match(/[aeiouyäöü]+/g) || []).length);
+
+/* LRC → Zeilen mit Wort-Zeitpunkten. Erweitertes LRC (<mm:ss.xx> je Wort) wird genutzt,
+   sonst werden die Wörter nach Silben über die gesungene Dauer der Zeile verteilt. */
 export function parseLrc(raw) {
   const lines = [];
   String(raw || "").split(/\r?\n/).forEach((line) => {
-    const stamps = [...line.matchAll(/\[(\d+):(\d+(?:[.,]\d+)?)\]/g)];
-    const text = line.replace(/\[\d+:\d+(?:[.,]\d+)?\]/g, "").trim();
-    stamps.forEach((m) => lines.push({ t: (Number(m[1]) * 60 + Number(m[2].replace(",", "."))) * 1000, text }));
+    const stamps = [...line.matchAll(TS)];
+    if (!stamps.length) return;
+    const body = line.replace(TS, "");
+    const marks = [...body.matchAll(WTS)];
+    let words = null;
+    if (marks.length) {
+      words = [];
+      const parts = body.split(WTS);
+      // parts: [vorher, m, s, text, m, s, text, ...]
+      for (let i = 1; i + 2 < parts.length + 1; i += 3) {
+        const text = (parts[i + 2] || "").trim();
+        if (text) text.split(/\s+/).forEach((w, k) => words.push({ w, t: toMs(parts[i], parts[i + 1]) + k * 120 }));
+      }
+    }
+    const text = body.replace(WTS, "").replace(/\s+/g, " ").trim();
+    stamps.forEach((m) => lines.push({ t: toMs(m[1], m[2]), text, words: words ? words.map((x) => ({ ...x })) : null }));
   });
-  return lines.filter((l) => l.text).sort((a, b) => a.t - b.t);
+  const out = lines.filter((l) => l.text).sort((a, b) => a.t - b.t);
+  out.forEach((l, i) => {
+    const next = out[i + 1] ? out[i + 1].t : l.t + 6000;
+    // Satzzeichen ohne Buchstaben (z. B. „–“) hängen am vorigen Wort, damit der Punkt dort nicht hüpft
+    const tokens = [];
+    l.text.split(" ").filter(Boolean).forEach((w) => {
+      if (tokens.length && !/[\p{L}\p{N}]/u.test(w)) tokens[tokens.length - 1] += ` ${w}`; else tokens.push(w);
+    });
+    if (l.words && l.words.length === tokens.length) { l.end = Math.min(next, l.words[l.words.length - 1].t + 900); return; }
+    const syl = tokens.map(syllables);
+    const total = syl.reduce((a, b) => a + b, 0);
+    // gesungene Dauer: ca. 0,27 s je Silbe, höchstens bis kurz vor die nächste Zeile
+    const sung = Math.max(600, Math.min((next - l.t) * 0.92, total * 270 + 250));
+    let acc = 0;
+    l.words = tokens.map((w, k) => { const t = l.t + (acc / total) * sung; acc += syl[k]; return { w, t }; });
+    l.end = l.t + sung;
+  });
+  return out;
 }
 
 class SpotifyFlexFlowCard extends HTMLElement {
@@ -113,11 +151,13 @@ class SpotifyFlexFlowCard extends HTMLElement {
 
   connectedCallback() {
     if (!this._tick) this._tick = setInterval(() => this._frame(), 250);
+    if (this._s?.lyrics?.lines?.length) this._ballLoop();
     this._observe();
   }
 
   disconnectedCallback() {
     clearInterval(this._tick); this._tick = null;
+    if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
     this._ro?.disconnect(); this._ro = null;
   }
 
@@ -161,11 +201,25 @@ class SpotifyFlexFlowCard extends HTMLElement {
     return String(st.attributes.friendly_name || st.entity_id).replace(/\s*Spotify Flex$/i, "");
   }
 
+  /* Uhrabweichung Browser ↔ Home Assistant: aus live beobachteten Positions-Updates
+     (Zustellung dauert nur Millisekunden) – sonst wäre der Liedtext je nach Gerät versetzt. */
+  _trackSkew() {
+    const upd = this._attrs.media_position_updated_at;
+    if (!upd || upd === this._s.lastUpd) return;
+    const first = this._s.lastUpd === undefined;
+    this._s.lastUpd = upd;
+    if (first) return; // Wert beim Laden kann alt sein
+    const sample = Date.now() - new Date(upd).getTime();
+    if (!Number.isFinite(sample)) return;
+    const arr = (this._s.skews = [...(this._s.skews || []), sample].slice(-12));
+    this._s.skew = Math.min(...arr);
+  }
+
   _position() {
     const a = this._attrs;
     let pos = Number(a.media_position || 0);
     if (this._st?.state === "playing" && a.media_position_updated_at) {
-      const el = (Date.now() - new Date(a.media_position_updated_at).getTime()) / 1000;
+      const el = (Date.now() - (this._s.skew || 0) - new Date(a.media_position_updated_at).getTime()) / 1000;
       if (el > 0 && Number.isFinite(el)) pos += el;
     }
     const dur = Number(a.media_duration || 0);
@@ -218,6 +272,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
         <div class="surface loading">
           <aside class="lyrics-panel" aria-label="Liedtext">
             <div class="lyrics-copy"></div>
+            <div class="lyrics-bar"></div>
           </aside>
           <header class="top">
             <span class="timer-badge" hidden>${svg("timer")}<span></span></span>
@@ -301,6 +356,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
     surface.classList.toggle("unavailable", st.state === "unavailable");
     const a = st.attributes;
     const playing = st.state === "playing";
+    this._trackSkew();
     const hasMedia = !!a.media_title;
 
     // header
@@ -425,6 +481,8 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const a = this._attrs;
     const panelOn = this._s.lyricsOn;
     this._$(".surface").classList.toggle("lyrics-on", panelOn);
+    const bar = this._$(".lyrics-bar");
+    if (bar && !bar.firstChild) bar.innerHTML = this._offsetCtl();
     if (!a.media_title) { this._s.lyrics = null; this._s.lyricsKey = null; this._paintLyrics(); return; }
     const key = `${a.media_title}|${a.media_artist || ""}`;
     if (key === this._s.lyricsKey) return;
@@ -470,20 +528,28 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const L = this._s.lyrics;
     for (const box of this._lyricsTargets()) {
       box.dataset.cur = "";
+      box.dataset.key = this._s.lyricsKey || "";
       if (!L) { box.innerHTML = `<p class="lmsg">Kein Titel aktiv.</p>`; continue; }
       if (L.loading) { box.innerHTML = `<p class="lmsg">Liedtext wird geladen …</p>`; continue; }
-      if (L.lines.length) box.innerHTML = L.lines.map((l, i) => `<div class="lyric-line" data-i="${i}">${esc(l.text)}</div>`).join("");
-      else if (L.text) box.innerHTML = `<div class="plain">${esc(L.text)}</div>`;
+      if (L.lines.length) {
+        box.innerHTML = `<span class="ball" aria-hidden="true"></span>` + L.lines.map((l, i) =>
+          `<div class="lyric-line" data-i="${i}">${l.words.map((w, k) => `<span class="w" data-k="${k}">${esc(w.w)}</span>`).join(" ")}</div>`).join("");
+      } else if (L.text) box.innerHTML = `<div class="plain">${esc(L.text)}</div>`;
       else box.innerHTML = `<p class="lmsg">Für diesen Titel ist kein Liedtext verfügbar.</p>`;
     }
     this._lyricTick(true);
+    this._ballLoop();
+  }
+
+  _heardMs() {
+    // gehörte Position = Spotify-Position minus Puffer bis zum Lautsprecher
+    return (this._position() - this._offset()) * 1000;
   }
 
   _lyricTick(force = false) {
     const L = this._s.lyrics;
     if (!L?.lines?.length) return;
-    // gehörte Position = Spotify-Position minus AirPlay-Puffer
-    const ms = (this._position() - this._offset()) * 1000;
+    const ms = this._heardMs();
     let cur = -1;
     for (let i = 0; i < L.lines.length; i++) { if (L.lines[i].t <= ms) cur = i; else break; }
     for (const box of this._lyricsTargets()) {
@@ -498,13 +564,77 @@ class SpotifyFlexFlowCard extends HTMLElement {
     }
   }
 
-  _setOffset(delta) {
-    const v = Math.round((this._offset() + delta) * 10) / 10;
-    this._s.offset = Math.max(-5, Math.min(8, v));
+  /* springender Punkt (wie das Mitsing-Bällchen): landet auf jedem Wort, wenn es gesungen wird */
+  _ballLoop() {
+    if (this._raf) return;
+    const step = () => {
+      this._raf = null;
+      if (!this.isConnected || !this._s.lyrics?.lines?.length) return;
+      const boxes = this._lyricsTargets().filter((b) => b.clientHeight);
+      if (!boxes.length) { this._raf = requestAnimationFrame(step); return; }
+      const L = this._s.lyrics;
+      const ms = this._heardMs();
+      const playing = this._st?.state === "playing";
+      let li = -1;
+      for (let i = 0; i < L.lines.length; i++) { if (L.lines[i].t <= ms) li = i; else break; }
+      for (const box of boxes) this._placeBall(box, L, li, ms, playing);
+      this._raf = requestAnimationFrame(step);
+    };
+    this._raf = requestAnimationFrame(step);
+  }
+
+  _placeBall(box, L, li, ms, playing) {
+    const ball = box.querySelector(".ball");
+    if (!ball) return;
+    const line = L.lines[li];
+    const row = li >= 0 ? box.querySelector(`.lyric-line[data-i="${li}"]`) : null;
+    if (!line || !row || ms > line.end + 700) { ball.classList.remove("on"); return; }
+    const spans = row.querySelectorAll(".w");
+    const words = line.words;
+    let k = 0;
+    for (let i = 0; i < words.length; i++) { if (words[i].t <= ms) k = i; else break; }
+    const pos = (span) => ({ x: span.offsetLeft + span.offsetWidth / 2, y: span.offsetTop });
+    const a = spans[k] ? pos(spans[k]) : null;
+    if (!a) { ball.classList.remove("on"); return; }
+    const nextT = words[k + 1] ? words[k + 1].t : line.end;
+    const b = spans[k + 1] ? pos(spans[k + 1]) : null;
+    let p = (ms - words[k].t) / Math.max(120, nextT - words[k].t);
+    p = Math.max(0, Math.min(1, p));
+    let x = a.x, y = a.y;
+    let lift = 0;
+    if (b) {
+      x = a.x + (b.x - a.x) * p;
+      y = a.y + (b.y - a.y) * p;
+      const hop = Math.min(16, 7 + Math.abs(b.x - a.x) * 0.12);
+      lift = hop * 4 * p * (1 - p);
+    } else {
+      lift = 6 * 4 * p * (1 - p) * (p < 0.5 ? 1 : 0.4); // letzter Hüpfer auf dem letzten Wort
+    }
+    spans.forEach((s, i) => s.classList.toggle("sung", i <= k));
+    ball.style.transform = `translate(${x - 5}px, ${y - 13 - lift}px)`;
+    ball.classList.toggle("on", playing || ms <= line.end);
+  }
+
+  _setOffset(delta, absolute = null) {
+    const v = absolute !== null ? absolute : this._offset() + delta;
+    this._s.offset = Math.max(-5, Math.min(10, Math.round(v * 100) / 100));
     lsSet(this._ls + "offset", this._s.offset);
-    const o = this.shadowRoot.querySelectorAll(".offset-val");
-    o.forEach((el) => { el.textContent = `${this._s.offset.toFixed(1).replace(".", ",")} s`; });
+    this.shadowRoot.querySelectorAll(".offset-val").forEach((el) => { el.textContent = `${this._s.offset.toFixed(1).replace(".", ",")} s`; });
     this._lyricTick(true);
+  }
+
+  /* „Takt“: im Moment tippen, in dem eine Zeile zu singen beginnt → Versatz wird gemessen */
+  _tapSync() {
+    const L = this._s.lyrics;
+    if (!L?.lines?.length) { this._toast("Für diesen Titel gibt es keinen getakteten Liedtext.", true); return; }
+    const raw = this._position() * 1000;
+    const heard = raw - this._offset() * 1000;
+    let best = 0;
+    L.lines.forEach((l, i) => { if (Math.abs(l.t - heard) < Math.abs(L.lines[best].t - heard)) best = i; });
+    const off = (raw - L.lines[best].t) / 1000;
+    if (off < -5 || off > 10) { this._toast("Das passte zu keiner Zeile – bitte genau beim Zeilenanfang tippen.", true); return; }
+    this._setOffset(0, off);
+    this._toast(`Liedtext angepasst: ${off.toFixed(1).replace(".", ",")} s Verzögerung`);
   }
 
   /* ------------------------------------------------------------- input */
@@ -553,6 +683,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
       case "close": return this._closeSheet();
       case "off-minus": return this._setOffset(-0.2);
       case "off-plus": return this._setOffset(0.2);
+      case "tap-sync": return this._tapSync();
       // library sheet
       case "tab": this._s.lib.tab = btn.dataset.tab; this._s.lib.stack = []; return this._renderLibrary();
       case "lib-back": this._s.lib.stack.pop(); return this._renderLibrary();
@@ -663,7 +794,8 @@ class SpotifyFlexFlowCard extends HTMLElement {
     return `<span class="offset" title="Liedtext an den Ton anpassen (AirPlay-Verzögerung)">
       <button class="nb xs" data-a="off-minus" aria-label="Liedtext früher">${svg("minus")}</button>
       <span class="offset-val">${this._offset().toFixed(1).replace(".", ",")} s</span>
-      <button class="nb xs" data-a="off-plus" aria-label="Liedtext später">${svg("plus")}</button></span>`;
+      <button class="nb xs" data-a="off-plus" aria-label="Liedtext später">${svg("plus")}</button>
+      <button class="pill xs" data-a="tap-sync" title="Genau dann tippen, wenn eine Zeile zu singen beginnt">Takt</button></span>`;
   }
 
   /* speakers */
@@ -927,9 +1059,18 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
   font-size:clamp(15px,1.15vw,19px); color:var(--ink);
   -webkit-mask-image:linear-gradient(to bottom,transparent,#000 12%,#000 88%,transparent); mask-image:linear-gradient(to bottom,transparent,#000 12%,#000 88%,transparent); }
 .lyrics-copy::-webkit-scrollbar { display:none; }
-.lyric-line { padding:7px 2px; opacity:.4; transition:opacity .25s,color .25s,transform .25s; }
+.lyrics-copy { position:relative; }
+.lyric-line { padding:9px 2px 7px; opacity:.4; transition:opacity .25s,color .25s,transform .25s; }
+.lyric-line .w { transition:color .15s; }
+.lyric-line.current .w { color:#7b8a9c; }
+.lyric-line.current .w.sung { color:#172b40; }
+.ball { position:absolute; left:0; top:0; z-index:2; width:10px; height:10px; border-radius:50%; background:var(--acc);
+  box-shadow:0 2px 5px rgba(30,158,85,.35); opacity:0; transition:opacity .2s; pointer-events:none; will-change:transform; }
+.ball.on { opacity:1; }
+.lyrics-bar { display:flex; justify-content:center; padding:6px 0 2px; }
+.lyrics-bar .offset { gap:6px; }
 .lyric-line.past { opacity:.55; }
-.lyric-line.current { opacity:1; color:#172b40; font-weight:750; transform:translateX(4px); }
+.lyric-line.current { opacity:1; color:#172b40; font-weight:750; }
 .lyrics-copy .plain { white-space:pre-line; opacity:.8; }
 .lmsg { color:var(--muted); font-size:.9rem; text-align:center; padding:18px 8px; margin:0; }
 .lmsg.err { color:#b42318; }
@@ -959,7 +1100,7 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
 .sh-sub { text-align:center; color:var(--muted); font-size:.85rem; margin:-4px 0 6px; }
 .offset { display:inline-flex; align-items:center; gap:6px; font-size:.8rem; color:var(--muted); font-variant-numeric:tabular-nums; }
 .lyrics-copy.big { flex:1; text-align:center; font-size:clamp(17px,4.4vw,22px); }
-.lyrics-copy.big .lyric-line.current { transform:scale(1.04); }
+.lyrics-copy.big .lyric-line { padding:12px 2px 8px; }
 .hint { color:var(--muted); font-size:.82rem; margin:12px 4px 0; }
 .hint.center { text-align:center; }
 .pills { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:12px; }

@@ -43,7 +43,7 @@ lyrics_offset: 2.3   # optional: Sekunden AirPlay-Verzögerung für den Liedtext
 cover_flow: true     # optional: nächstes Cover neben dem aktuellen
 ```
 
-Liedtexte kommen von lrclib.net (Titel, Künstler, Album und Dauer werden dorthin gesendet). Passt der Liedtext nicht genau zum Ton, lässt er sich im Liedtext-Fenster mit −/+ verschieben; die Einstellung merkt sich der Browser.
+Liedtexte kommen von lrclib.net (Titel, Künstler, Album und Dauer werden dorthin gesendet). Ein springender Punkt landet auf jedem Wort, wenn es gesungen wird. Passt der Liedtext nicht genau zum Ton: unter dem Liedtext genau beim Beginn einer Zeile auf **Takt** tippen (misst die Verzögerung) oder mit −/+ fein nachstellen; die Einstellung merkt sich der Browser.
 
 ## Voraussetzungen und Grenzen
 

@@ -1,6 +1,6 @@
 """Constants shared by the Spotify Flex app backend."""
 
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 
 API_BASE = "https://api.spotify.com/v1"
 AUTHORIZE_URL = "https://accounts.spotify.com/authorize"

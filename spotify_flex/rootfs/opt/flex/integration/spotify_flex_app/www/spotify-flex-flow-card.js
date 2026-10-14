@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.2.1";
+const CARD_VERSION = "1.2.2";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -220,7 +220,6 @@ class SpotifyFlexFlowCard extends HTMLElement {
             <div class="lyrics-copy"></div>
           </aside>
           <header class="top">
-            <button class="chip" data-a="speakers" aria-label="Lautsprecher wählen">${svg("speaker")}<span class="out">…</span></button>
             <span class="timer-badge" hidden>${svg("timer")}<span></span></span>
           </header>
           <section class="hero">
@@ -294,7 +293,6 @@ class SpotifyFlexFlowCard extends HTMLElement {
     if (!st) {
       surface.classList.remove("loading");
       surface.classList.add("ready", "unavailable");
-      this._$(".out").textContent = "Player nicht gefunden";
       this._$(".title").textContent = `${this._config.entity} gibt es nicht`;
       this._$(".sub").textContent = "Integration „Spotify Flex Player“ einrichten oder entity in der Karte anpassen.";
       return;
@@ -307,11 +305,13 @@ class SpotifyFlexFlowCard extends HTMLElement {
 
     // header
     const speakers = (a.speakers || []);
-    this._$(".out").textContent = speakers.length ? (a.source || speakers.join(", ")) : "Kein Lautsprecher";
-    this._$(".chip").classList.toggle("warn", !speakers.length);
+    const spk = this._$('.actions [data-a="speakers"]');
+    spk.classList.toggle("warn", !speakers.length);
+    spk.title = speakers.length ? `Lautsprecher: ${a.source || speakers.join(", ")}` : "Kein Lautsprecher aktiv";
     const tb = this._$(".timer-badge");
     if (a.sleep_timer_ends) { tb.hidden = false; this._timerEnds = new Date(a.sleep_timer_ends).getTime(); }
     else { tb.hidden = true; this._timerEnds = null; }
+    this._$(".top").classList.toggle("empty", !a.sleep_timer_ends);
 
     // cover + caption
     const art = a.entity_picture ? (a.entity_picture.startsWith("http") ? a.entity_picture : this._hass.hassUrl?.(a.entity_picture) || a.entity_picture) : null;
@@ -868,12 +868,8 @@ ha-card.sf { display:block; background:var(--bg); border:0; border-radius:20px; 
 .surface.loading > :not(.toast), .surface:not(.ready) > :not(.toast) { visibility:hidden; }
 .surface.narrow { height:auto; min-height:0; }
 .top { display:flex; align-items:center; gap:10px; min-height:40px; z-index:2; }
-.chip { display:inline-flex; align-items:center; gap:8px; max-width:70%; padding:8px 14px 8px 10px; border-radius:999px;
-  background:var(--bg); box-shadow:var(--raise); font-weight:600; font-size:.88rem; color:var(--ink2); }
-.chip svg { width:18px; height:18px; color:var(--acc); }
-.chip .out { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.chip.warn svg { color:#c2410c; }
-.chip:active { box-shadow:var(--inset); }
+.top.empty { min-height:0; height:0; overflow:hidden; }
+.nb.warn { color:#c2410c; }
 .timer-badge { margin-left:auto; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px;
   box-shadow:var(--inset); font-size:.82rem; font-variant-numeric:tabular-nums; color:var(--ink2); }
 .timer-badge svg { width:16px; height:16px; color:var(--acc); }

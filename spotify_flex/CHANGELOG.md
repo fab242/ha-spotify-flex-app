@@ -45,3 +45,7 @@
 ## 1.2.1
 
 - Player-Kachel: eigener Knopf „Lautsprecher / Gruppe“, pro Box „Nur hier“, Schatten wie die übrigen Kacheln; Lautsprecher werden direkt über den Player gefunden.
+
+## 1.2.2
+
+- Player-Kachel: Lautsprecher-Anzeige oben links entfernt (Auswahl über den Lautsprecher-Knopf).

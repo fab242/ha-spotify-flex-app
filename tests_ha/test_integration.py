@@ -134,6 +134,9 @@ async def test_discovery_entities_and_grouping(hass: HomeAssistant, fake: FakeAp
     assert bad.state == "playing" and kid.state == "off"
     assert main.attributes["source_list"] == ["Oben", "Badezimmer", "Kinderzimmer"]
     assert sel.attributes["options"] == ["Aus", "Oben"]
+    assert main.attributes["speaker_entities"] == ["media_player.badezimmer_spotify_flex",
+                                                   "media_player.kinderzimmer_spotify_flex"]
+    assert main.attributes["group_entity"] == "select.spotify_flex_speaker_group"
 
     # standard HA grouping dialog: join Kinderzimmer to the player
     await hass.services.async_call("media_player", "join", {

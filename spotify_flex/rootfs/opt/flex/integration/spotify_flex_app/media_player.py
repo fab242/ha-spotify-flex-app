@@ -295,7 +295,10 @@ class FlexPlayer(FlexBase):
                 "receiver_logged_in": (d.get("receiver") or {}).get("logged_in"),
                 "library_connected": (d.get("web") or {}).get("connected"),
                 "sleep_timer_ends": self.coordinator.sleep_ends.isoformat() if self.coordinator.sleep_ends else None,
-                "integration": "spotify_flex_app"}
+                "integration": "spotify_flex_app",
+                # all speaker players + group select, so cards need no registry lookup
+                "speaker_entities": [e for e in (self._speaker_entity_id(s["id"]) for s in self.coordinator.speakers) if e],
+                "group_entity": er.async_get(self.hass).async_get_entity_id("select", DOMAIN, "group")}
 
     async def async_set_volume_level(self, volume: float) -> None:
         await self._player("volume", {"percent": round(volume * 100)})

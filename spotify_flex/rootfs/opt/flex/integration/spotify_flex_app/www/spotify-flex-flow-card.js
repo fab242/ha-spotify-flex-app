@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.2.0";
+const CARD_VERSION = "1.2.1";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -134,6 +134,11 @@ class SpotifyFlexFlowCard extends HTMLElement {
 
   _speakers() {
     const hass = this._hass;
+    const listed = this._attrs.speaker_entities;
+    if (Array.isArray(listed) && listed.length) {
+      return listed.map((id) => hass.states[id]).filter(Boolean)
+        .sort((a, b) => this._speakerName(a).localeCompare(this._speakerName(b), "de"));
+    }
     const ents = hass?.entities || {};
     return Object.keys(hass?.states || {})
       .filter((id) => id.startsWith("media_player.") && id !== this._config.entity
@@ -145,6 +150,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
   _groupEntity() {
     const hass = this._hass;
     if (this._config.group_entity) return hass.states[this._config.group_entity];
+    if (this._attrs.group_entity && hass.states[this._attrs.group_entity]) return hass.states[this._attrs.group_entity];
     const ents = hass?.entities || {};
     const id = Object.keys(hass?.states || {}).find((e) => e.startsWith("select.")
       && (ents[e]?.platform === DOMAIN || (!ents[e] && /^select\.spotify_flex_(lautsprecher_gruppe|speaker_group)$/.test(e))));
@@ -226,6 +232,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
             <div class="caption">
               <div class="copy"><div class="title">&nbsp;</div><div class="sub">&nbsp;</div></div>
               <div class="actions">
+                <button class="nb sm" data-a="speakers" aria-label="Lautsprecher oder Gruppe wählen" title="Lautsprecher / Gruppe">${svg("speaker")}</button>
                 <button class="nb sm" data-a="like" aria-label="Lieblingssong">${svg("heartO")}</button>
                 <button class="nb sm" data-a="queue" aria-label="Warteschlange">${svg("queue")}</button>
                 <button class="nb sm" data-a="timer" aria-label="Sleep-Timer">${svg("timer")}</button>
@@ -564,6 +571,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
         const st = this._hass.states[btn.dataset.id];
         await this._svc("media_player", st?.state === "off" ? "turn_on" : "turn_off", { entity_id: btn.dataset.id });
       });
+      case "only": return this._once("only", () => this._player("select_source", { source: btn.dataset.name }));
       case "group": return this._once("grp", async () => {
         const g = this._groupEntity();
         if (g) await this._svc("select", "select_option", { entity_id: g.entity_id, option: btn.dataset.opt });
@@ -675,13 +683,15 @@ class SpotifyFlexFlowCard extends HTMLElement {
           <span class="spk-state">${st.state === "unavailable" ? "nicht erreichbar" : on ? (st.state === "playing" ? "spielt" : "aktiv") : "aus"}</span></span>
           <span class="switch ${on ? "on" : ""}" aria-hidden="true"></span>
         </button>
+        <div class="spk-btns"><button class="pill xs ${this._attrs.source === this._speakerName(st) ? "on" : ""}" data-a="only" data-name="${esc(this._speakerName(st))}" ${st.state === "unavailable" ? "disabled" : ""}>Nur hier</button></div>
         ${on ? `<div class="spk-volrow">${svg("vol")}<input class="spk-vol" type="range" min="0" max="100" value="${v}" style="--p:${v}%" data-id="${esc(st.entity_id)}" aria-label="Lautstärke ${esc(this._speakerName(st))}"><span class="spk-pct">${v}%</span></div>` : ""}
       </div>`;
     }).join("");
-    const html = `${this._head("Lautsprecher", "speaker")}
-      ${chips ? `<div class="gchips">${chips}</div>` : ""}
+    const html = `${this._head("Lautsprecher & Gruppen", "speaker")}
+      ${chips ? `<h4 class="grp">Gruppen</h4><div class="gchips">${chips}</div>` : ""}
+      <h4 class="grp">Lautsprecher</h4>
       <div class="spk-grid">${cards || `<p class="lmsg">Keine Spotify-Flex-Lautsprecher gefunden.</p>`}</div>
-      <p class="hint">Gruppen legst du in der Spotify-Flex-App an (mehrere Boxen einschalten → „+ Auswahl als Gruppe“).</p>`;
+      <p class="hint">„Nur hier“ spielt nur auf dieser Box, der Schalter nimmt eine Box dazu oder heraus. Gruppen legst du in der Spotify-Flex-App an (mehrere Boxen einschalten → „+ Auswahl als Gruppe“).</p>`;
     const sheet = this._$(".sheet");
     if (this._s.sheet !== "speakers") return;
     if (sheet.contains(this.shadowRoot.activeElement) && this.shadowRoot.activeElement?.matches?.(".spk-vol")) return;
@@ -850,7 +860,9 @@ const CSS = `
 button { font:inherit; color:inherit; border:0; background:none; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 svg { width:22px; height:22px; fill:currentColor; flex:none; }
 svg.st { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-ha-card.sf { background:var(--bg); border:0; border-radius:20px; box-shadow:none; overflow:hidden; color:var(--ink); }
+ha-card.sf { display:block; background:var(--bg); border:0; border-radius:20px; overflow:hidden; color:var(--ink);
+  box-shadow:-5px -5px 10px #ffffff, 6px 7px 14px #d2dbe4; }
+.surface { border-radius:20px; }
 .surface { position:relative; display:grid; grid-template-rows:auto 1fr auto auto auto; gap:10px; padding:12px 16px 14px;
   min-height:420px; height:var(--h); background:var(--bg); }
 .surface.loading > :not(.toast), .surface:not(.ready) > :not(.toast) { visibility:hidden; }
@@ -976,6 +988,10 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
 .switch::after { content:""; position:absolute; top:4px; left:4px; width:18px; height:18px; border-radius:50%; background:var(--bg);
   box-shadow:-2px -2px 4px var(--hi),2px 2px 4px #c3ccd6; transition:transform .18s; }
 .switch.on::after { transform:translateX(20px); background:var(--acc); }
+.spk-btns { display:flex; justify-content:flex-end; margin-top:8px; }
+.pill.xs { padding:6px 12px; font-size:.78rem; }
+.pill.on { box-shadow:var(--inset); color:var(--acc); }
+.pill:disabled { opacity:.45; }
 .spk-volrow { display:flex; align-items:center; gap:8px; margin-top:10px; color:var(--muted); }
 .spk-volrow svg { width:18px; height:18px; }
 .spk-volrow input { flex:1; }

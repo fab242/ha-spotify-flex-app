@@ -31,7 +31,9 @@
       friendly_name: "Spotify Flex Player", media_title: "Euphoria (Firefly)", media_artist: "Delerium", media_album_name: "Karma",
       media_content_id: "spotify:track:T1", media_duration: 328, media_position: 21, media_position_updated_at: now,
       entity_picture: window.__covers.now, volume_level: 0.42, shuffle: true, repeat: "all", source: "Wohnzimmer",
-      speakers: ["HomePod Links", "HomePod Rechts"], sleep_timer_ends: params.has("timer") ? new Date(Date.now() + 1500000).toISOString() : null } },
+      speakers: ["HomePod Links", "HomePod Rechts"],
+      speaker_entities: ["media_player.homepod_links_spotify_flex", "media_player.homepod_rechts_spotify_flex", "media_player.badezimmer_spotify_flex", "media_player.kinderzimmer_spotify_flex"],
+      group_entity: "select.spotify_flex_lautsprecher_gruppe", sleep_timer_ends: params.has("timer") ? new Date(Date.now() + 1500000).toISOString() : null } },
     "media_player.homepod_links_spotify_flex": { entity_id: "media_player.homepod_links_spotify_flex", state: "playing", attributes: { friendly_name: "HomePod Links Spotify Flex", volume_level: 0.5 } },
     "media_player.homepod_rechts_spotify_flex": { entity_id: "media_player.homepod_rechts_spotify_flex", state: "playing", attributes: { friendly_name: "HomePod Rechts Spotify Flex", volume_level: 0.48 } },
     "media_player.badezimmer_spotify_flex": { entity_id: "media_player.badezimmer_spotify_flex", state: "off", attributes: { friendly_name: "Badezimmer Spotify Flex", volume_level: 0.3 } },
@@ -39,8 +41,7 @@
     "select.spotify_flex_lautsprecher_gruppe": { entity_id: "select.spotify_flex_lautsprecher_gruppe", state: "Wohnzimmer", attributes: { options: ["Aus", "Wohnzimmer", "Überall"] } },
     "media_player.wohnzimmer_4": { entity_id: "media_player.wohnzimmer_4", state: "idle", attributes: { friendly_name: "Wohnzimmer MA" } },
   };
-  const entities = {};
-  for (const id of Object.keys(states)) if (id.includes("spotify_flex")) entities[id] = { entity_id: id, platform: "spotify_flex_app" };
+  const entities = {}; // absichtlich leer: die Kachel muss ohne Entitätsregister auskommen
   window.__calls = [];
   const browse = {
     "flex:node:playlists@0": [

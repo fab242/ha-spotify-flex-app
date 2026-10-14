@@ -41,3 +41,7 @@
 
 - Neue Player-Kachel `custom:spotify-flex-flow-card` im Aufbau von HOMEii Flow (helles Neumorph, ohne Logo/Farbverlauf, kein Ladeflackern): Cover mit Vorschau des nächsten Titels, Liedtext links (synchron, AirPlay-Verzögerung einstellbar), Mediathek mit Suche, Warteschlange, Lieblingssong, Sleep-Timer, Lautsprecher und Gruppen.
 - Integration: Dienste `search`, `queue`, `add_to_queue`, `like`, `sleep_timer` (mit Antwort); die Kachel wird unter `/spotify_flex_app/spotify-flex-flow-card.js` bereitgestellt.
+
+## 1.2.1
+
+- Player-Kachel: eigener Knopf „Lautsprecher / Gruppe“, pro Box „Nur hier“, Schatten wie die übrigen Kacheln; Lautsprecher werden direkt über den Player gefunden.

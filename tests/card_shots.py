@@ -58,7 +58,7 @@ async def main() -> None:
         await click(p, '[data-a="do-search"]')
         await p.screenshot(path=str(OUT / "wide_search.png"))
         await click(p, '[data-a="close"]')
-        await click(p, '.chip')
+        await click(p, '.actions [data-a="speakers"]')
         await p.screenshot(path=str(OUT / "wide_speakers.png"))
         await click(p, '[data-a="close"]')
         await click(p, '.actions [data-a="queue"]')

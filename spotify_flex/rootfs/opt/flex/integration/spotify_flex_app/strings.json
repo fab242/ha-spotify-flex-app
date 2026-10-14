@@ -8,12 +8,18 @@
       "user": {
         "title": "Spotify Flex Player",
         "description": "Normalerweise richtet sich die Integration automatisch über die App ein. Den API-Token findest du in der App unter Einstellungen.",
-        "data": {"host": "Host", "port": "Port", "token": "API-Token"}
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "token": "API-Token"
+        }
       },
       "reauth_confirm": {
         "title": "Spotify Flex Player",
         "description": "Der API-Token passt nicht mehr. Bitte den aktuellen Token aus der App (Einstellungen) eintragen.",
-        "data": {"token": "API-Token"}
+        "data": {
+          "token": "API-Token"
+        }
       }
     },
     "error": {
@@ -29,10 +35,68 @@
   },
   "entity": {
     "media_player": {
-      "player": {"name": "Player"}
+      "player": {
+        "name": "Player"
+      }
     },
     "select": {
-      "group": {"name": "Lautsprecher-Gruppe"}
+      "group": {
+        "name": "Lautsprecher-Gruppe"
+      }
+    }
+  },
+  "services": {
+    "search": {
+      "name": "Suchen",
+      "description": "Spotify durchsuchen (Ergebnisse als Antwort).",
+      "fields": {
+        "query": {
+          "name": "Suchbegriff",
+          "description": "Wonach gesucht wird."
+        },
+        "types": {
+          "name": "Arten",
+          "description": "track, artist, album, playlist, show, episode, audiobook."
+        }
+      }
+    },
+    "queue": {
+      "name": "Warteschlange",
+      "description": "Liefert den aktuellen Titel und die nächsten Titel."
+    },
+    "add_to_queue": {
+      "name": "Zur Warteschlange",
+      "description": "Titel oder Folge hinten anhängen.",
+      "fields": {
+        "uri": {
+          "name": "Spotify-URI",
+          "description": "spotify:track:… oder spotify:episode:…"
+        }
+      }
+    },
+    "like": {
+      "name": "Lieblingssong",
+      "description": "Status abfragen, speichern, entfernen oder umschalten (ohne URI: aktueller Titel).",
+      "fields": {
+        "action": {
+          "name": "Aktion",
+          "description": "status, save, remove oder toggle."
+        },
+        "uri": {
+          "name": "Spotify-URI",
+          "description": "Optional, sonst der laufende Titel."
+        }
+      }
+    },
+    "sleep_timer": {
+      "name": "Sleep-Timer",
+      "description": "Pausiert die Wiedergabe nach der angegebenen Zeit (0 = aus).",
+      "fields": {
+        "minutes": {
+          "name": "Minuten",
+          "description": "0 schaltet den Timer aus."
+        }
+      }
     }
   }
 }

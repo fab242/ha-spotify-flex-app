@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spotify Flex Flow – Testseite</title>
+<style>
+  body { margin: 0; padding: 16px; background: #f4f8fc; font-family: Roboto, "Segoe UI", system-ui, sans-serif; }
+  #wrap { max-width: 100%; }
+</style>
+</head>
+<body>
+<div id="wrap"></div>
+<script type="module">
+  // Testbilder ohne Netz
+  const cover = (a, b) => "data:image/svg+xml;utf8," + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="300" height="300" fill="url(#g)"/><circle cx="150" cy="150" r="70" fill="rgba(255,255,255,.25)"/></svg>`);
+  window.__covers = { now: cover("#2b5876", "#4e4376"), next: cover("#ee9ca7", "#ffdde1"), p1: cover("#11998e", "#38ef7d"), p2: cover("#fc5c7d", "#6a82fb") };
+  const lrc = ["[00:00.00]Intro", "[00:05.00]Erste Zeile im Takt", "[00:10.00]Zweite Zeile, ein bisschen länger als die erste", "[00:15.00]Dritte Zeile", "[00:20.00]Refrain – alle singen mit", "[00:25.00]Noch eine Zeile", "[00:30.00]Und noch eine", "[00:35.00]Fast geschafft", "[00:40.00]Ende"].join("\n");
+  const realFetch = window.fetch;
+  window.fetch = async (url, opts) => {
+    if (String(url).includes("lrclib.net")) {
+      return new Response(JSON.stringify({ syncedLyrics: lrc, plainLyrics: "" }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return realFetch(url, opts);
+  };
+  const now = new Date(Date.now() - 1000).toISOString();
+  const params = new URLSearchParams(location.search);
+  const states = {
+    "media_player.spotify_flex_player": { entity_id: "media_player.spotify_flex_player", state: params.get("state") || "playing", attributes: {
+      friendly_name: "Spotify Flex Player", media_title: "Euphoria (Firefly)", media_artist: "Delerium", media_album_name: "Karma",
+      media_content_id: "spotify:track:T1", media_duration: 328, media_position: 21, media_position_updated_at: now,
+      entity_picture: window.__covers.now, volume_level: 0.42, shuffle: true, repeat: "all", source: "Wohnzimmer",
+      speakers: ["HomePod Links", "HomePod Rechts"], sleep_timer_ends: params.has("timer") ? new Date(Date.now() + 1500000).toISOString() : null } },
+    "media_player.homepod_links_spotify_flex": { entity_id: "media_player.homepod_links_spotify_flex", state: "playing", attributes: { friendly_name: "HomePod Links Spotify Flex", volume_level: 0.5 } },
+    "media_player.homepod_rechts_spotify_flex": { entity_id: "media_player.homepod_rechts_spotify_flex", state: "playing", attributes: { friendly_name: "HomePod Rechts Spotify Flex", volume_level: 0.48 } },
+    "media_player.badezimmer_spotify_flex": { entity_id: "media_player.badezimmer_spotify_flex", state: "off", attributes: { friendly_name: "Badezimmer Spotify Flex", volume_level: 0.3 } },
+    "media_player.kinderzimmer_spotify_flex": { entity_id: "media_player.kinderzimmer_spotify_flex", state: "off", attributes: { friendly_name: "Kinderzimmer Spotify Flex", volume_level: 0.3 } },
+    "select.spotify_flex_lautsprecher_gruppe": { entity_id: "select.spotify_flex_lautsprecher_gruppe", state: "Wohnzimmer", attributes: { options: ["Aus", "Wohnzimmer", "Überall"] } },
+    "media_player.wohnzimmer_4": { entity_id: "media_player.wohnzimmer_4", state: "idle", attributes: { friendly_name: "Wohnzimmer MA" } },
+  };
+  const entities = {};
+  for (const id of Object.keys(states)) if (id.includes("spotify_flex")) entities[id] = { entity_id: id, platform: "spotify_flex_app" };
+  window.__calls = [];
+  const browse = {
+    "flex:node:playlists@0": [
+      { title: "Fabian", media_class: "playlist", media_content_id: "flex:node:playlist:P1@0#spotify:playlist:P1", can_play: true, can_expand: true, thumbnail: window.__covers.p1 },
+      { title: "Sport", media_class: "playlist", media_content_id: "flex:node:playlist:P2@0#spotify:playlist:P2", can_play: true, can_expand: true, thumbnail: window.__covers.p2 },
+      { title: "Chill am Abend mit einem sehr langen Namen", media_class: "playlist", media_content_id: "flex:node:playlist:P3@0#spotify:playlist:P3", can_play: true, can_expand: true, thumbnail: null },
+      { title: "Mehr …", media_class: "directory", media_content_id: "flex:node:playlists@50", can_play: false, can_expand: true },
+    ],
+    "flex:node:playlist:P1@0#spotify:playlist:P1": [
+      { title: "Euphoria (Firefly)", media_class: "track", media_content_id: "spotify:track:T1|spotify:playlist:P1", can_play: true, can_expand: false, thumbnail: window.__covers.now },
+      { title: "Silence", media_class: "track", media_content_id: "spotify:track:T2|spotify:playlist:P1", can_play: true, can_expand: false, thumbnail: window.__covers.next },
+    ],
+  };
+  const hass = {
+    states, entities, language: "de",
+    hassUrl: (p) => p,
+    callService: async (domain, service, data) => { window.__calls.push([domain, service, data]); },
+    callWS: async (msg) => {
+      window.__calls.push(["ws", msg.type, msg]);
+      if (msg.type === "media_player/browse_media") return { title: "x", children: browse[msg.media_content_id] || [] };
+      if (msg.type === "call_service") {
+        const s = msg.service;
+        if (s === "queue") return { response: { current: { title: "Euphoria (Firefly)", subtitle: "Delerium", image: window.__covers.now, type: "track", uri: "spotify:track:T1" },
+          items: [{ title: "Silence", subtitle: "Delerium · Sarah McLachlan", image: window.__covers.next, type: "track", uri: "spotify:track:T2", play_id: "spotify:track:T2" },
+                  { title: "Innocente", subtitle: "Delerium", image: null, type: "track", uri: "spotify:track:T3", play_id: "spotify:track:T3" }] } };
+        if (s === "like") return { response: { uri: "spotify:track:T1", liked: true } };
+        if (s === "search") return { response: { groups: [{ type: "track", items: [{ title: "Euphoria", subtitle: "Delerium", image: window.__covers.now, type: "track", uri: "spotify:track:T1", play_id: "spotify:track:T1" }] },
+          { type: "artist", items: [{ title: "Delerium", subtitle: "", image: window.__covers.p2, type: "artist", uri: "spotify:artist:A1", browse_id: "flex:node:artist:A1@0", play_id: "flex:node:artist:A1@0#spotify:artist:A1" }] }] } };
+        if (s === "sleep_timer") return { response: { ends_at: null } };
+      }
+      return {};
+    },
+  };
+  window.__hass = hass;
+  await import("../spotify_flex/rootfs/opt/flex/integration/spotify_flex_app/www/spotify-flex-flow-card.js");
+  const card = document.createElement("spotify-flex-flow-card");
+  card.setConfig({ entity: "media_player.spotify_flex_player", height: Number(params.get("h") || 600) });
+  document.getElementById("wrap").append(card);
+  card.hass = hass;
+  window.__card = card;
+</script>
+</body>
+</html>

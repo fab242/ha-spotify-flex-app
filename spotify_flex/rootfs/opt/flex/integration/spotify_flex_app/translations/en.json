@@ -8,12 +8,18 @@
       "user": {
         "title": "Spotify Flex Player",
         "description": "Normally this sets itself up from the app. The API token is shown in the app settings.",
-        "data": {"host": "Host", "port": "Port", "token": "API token"}
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "token": "API token"
+        }
       },
       "reauth_confirm": {
         "title": "Spotify Flex Player",
         "description": "The API token no longer matches. Enter the current token from the app settings.",
-        "data": {"token": "API token"}
+        "data": {
+          "token": "API token"
+        }
       }
     },
     "error": {
@@ -29,10 +35,68 @@
   },
   "entity": {
     "media_player": {
-      "player": {"name": "Player"}
+      "player": {
+        "name": "Player"
+      }
     },
     "select": {
-      "group": {"name": "Speaker group"}
+      "group": {
+        "name": "Speaker group"
+      }
+    }
+  },
+  "services": {
+    "search": {
+      "name": "Search",
+      "description": "Search Spotify (results as response).",
+      "fields": {
+        "query": {
+          "name": "Query",
+          "description": "What to search for."
+        },
+        "types": {
+          "name": "Types",
+          "description": "track, artist, album, playlist, show, episode, audiobook."
+        }
+      }
+    },
+    "queue": {
+      "name": "Queue",
+      "description": "Returns the current and upcoming items."
+    },
+    "add_to_queue": {
+      "name": "Add to queue",
+      "description": "Append a track or episode.",
+      "fields": {
+        "uri": {
+          "name": "Spotify URI",
+          "description": "spotify:track:… or spotify:episode:…"
+        }
+      }
+    },
+    "like": {
+      "name": "Liked songs",
+      "description": "Get, save, remove or toggle (no URI: current item).",
+      "fields": {
+        "action": {
+          "name": "Action",
+          "description": "status, save, remove or toggle."
+        },
+        "uri": {
+          "name": "Spotify URI",
+          "description": "Optional, defaults to the current item."
+        }
+      }
+    },
+    "sleep_timer": {
+      "name": "Sleep timer",
+      "description": "Pause playback after the given time (0 = off).",
+      "fields": {
+        "minutes": {
+          "name": "Minutes",
+          "description": "0 turns the timer off."
+        }
+      }
     }
   }
 }

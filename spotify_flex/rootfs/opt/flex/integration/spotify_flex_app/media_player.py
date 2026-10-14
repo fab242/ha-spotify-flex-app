@@ -293,7 +293,9 @@ class FlexPlayer(FlexBase):
         d = self.coordinator.data or {}
         return {"speakers": [s["name"] for s in self.coordinator.speakers if s.get("selected")],
                 "receiver_logged_in": (d.get("receiver") or {}).get("logged_in"),
-                "library_connected": (d.get("web") or {}).get("connected")}
+                "library_connected": (d.get("web") or {}).get("connected"),
+                "sleep_timer_ends": self.coordinator.sleep_ends.isoformat() if self.coordinator.sleep_ends else None,
+                "integration": "spotify_flex_app"}
 
     async def async_set_volume_level(self, volume: float) -> None:
         await self._player("volume", {"percent": round(volume * 100)})

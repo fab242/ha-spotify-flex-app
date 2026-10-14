@@ -206,3 +206,66 @@ async def test_rediscovery_updates_token(hass: HomeAssistant, fake: FakeApp) -> 
     assert result["type"] is FlowResultType.ABORT and result["reason"] == "already_configured"
     assert entry.data["token"] == "y" * 43
     await asyncio.sleep(0)
+
+
+async def test_card_services(hass: HomeAssistant, fake: FakeApp) -> None:
+    """Services the player card uses: search, queue, like, add_to_queue, sleep timer."""
+    orig = fake.request
+
+    async def extra(method, path, body=None, params=None, timeout=20):
+        if path == "/api/search":
+            fake.calls.append((method, path, body, params))
+            return {"tracks": {"items": [{"id": "T9", "uri": "spotify:track:T9", "type": "track", "name": "Silence",
+                                          "subtitle": "Delerium", "image": None, "playable": True, "expandable": False}]},
+                    "albums": {"items": [{"id": "AL1", "uri": "spotify:album:AL1", "type": "album", "name": "Karma",
+                                          "subtitle": "Delerium", "playable": True, "expandable": True}]}}
+        if path == "/api/queue":
+            return {"currently_playing": {"id": "T1", "uri": "spotify:track:T1", "type": "track", "name": "Closer"},
+                    "queue": [{"id": "T2", "uri": "spotify:track:T2", "type": "track", "name": "Next one", "image": "x"}]}
+        if path == "/api/now/liked":
+            return {"uri": "spotify:track:T1", "liked": False}
+        if path == "/api/library":
+            fake.calls.append((method, path, body, params))
+            return {"contains": [True]} if body["action"] == "contains" else {"ok": True}
+        if path == "/api/player/queue":
+            fake.calls.append((method, path, body, params))
+            return {"player": fake.state["player"]}
+        return await orig(method, path, body, params, timeout)
+
+    with patch(f"custom_components.{DOMAIN}.client.FlexClient.request", side_effect=extra):
+        await _setup_via_discovery(hass)
+        res = await hass.services.async_call(DOMAIN, "search", {"query": "Delerium", "types": ["track", "album"]},
+                                             blocking=True, return_response=True)
+        assert [g["type"] for g in res["groups"]] == ["track", "album"]
+        assert res["groups"][0]["items"][0]["play_id"] == "spotify:track:T9"
+        album = res["groups"][1]["items"][0]
+        assert album["browse_id"] == "flex:node:album:AL1@0"
+        assert album["play_id"] == "flex:node:album:AL1@0#spotify:album:AL1"
+
+        q = await hass.services.async_call(DOMAIN, "queue", {}, blocking=True, return_response=True)
+        assert q["current"]["title"] == "Closer" and q["items"][0]["image"] == "x"
+
+        r = await hass.services.async_call(DOMAIN, "like", {"action": "toggle"}, blocking=True, return_response=True)
+        assert r == {"uri": "spotify:track:T1", "liked": True}
+        assert ("POST", "/api/library", {"action": "save", "uris": ["spotify:track:T1"]}, None) in fake.calls
+        r = await hass.services.async_call(DOMAIN, "like", {"action": "status", "uri": "spotify:track:T5"},
+                                           blocking=True, return_response=True)
+        assert r["liked"] is True
+
+        await hass.services.async_call(DOMAIN, "add_to_queue", {"uri": "spotify:track:T2"}, blocking=True)
+        assert ("POST", "/api/player/queue", {"uri": "spotify:track:T2"}, None) in fake.calls
+
+        r = await hass.services.async_call(DOMAIN, "sleep_timer", {"minutes": 30}, blocking=True, return_response=True)
+        assert r["ends_at"]
+        await hass.async_block_till_done()
+        assert hass.states.get("media_player.spotify_flex_player").attributes["sleep_timer_ends"] == r["ends_at"]
+        r = await hass.services.async_call(DOMAIN, "sleep_timer", {"minutes": 0}, blocking=True, return_response=True)
+        assert r["ends_at"] is None
+
+
+async def test_card_is_served(hass: HomeAssistant, fake: FakeApp, hass_client) -> None:
+    await _setup_via_discovery(hass)
+    client = await hass_client()
+    resp = await client.get("/spotify_flex_app/spotify-flex-flow-card.js")
+    assert resp.status == 200
+    assert "spotify-flex-flow-card" in await resp.text()

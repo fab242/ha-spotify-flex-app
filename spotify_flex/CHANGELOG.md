@@ -36,3 +36,8 @@
 - Lautsprecher-Gruppen: speichern, mit einem Tipp aktivieren, umbenennen, aktualisieren, löschen. Dazu ein Knopf „alle aus“.
 - Neue Home-Assistant-Integration „Spotify Flex Player“ wird von der App mitgebracht und automatisch entdeckt: Player-Entität (Mediathek, Quelle/Gruppen, Gruppieren), eine Player-Entität je Lautsprecher und eine Auswahl für Gruppen.
 - Direkter Zugriff von Home Assistant nur noch mit API-Token.
+
+## 1.2.0
+
+- Neue Player-Kachel `custom:spotify-flex-flow-card` im Aufbau von HOMEii Flow (helles Neumorph, ohne Logo/Farbverlauf, kein Ladeflackern): Cover mit Vorschau des nächsten Titels, Liedtext links (synchron, AirPlay-Verzögerung einstellbar), Mediathek mit Suche, Warteschlange, Lieblingssong, Sleep-Timer, Lautsprecher und Gruppen.
+- Integration: Dienste `search`, `queue`, `add_to_queue`, `like`, `sleep_timer` (mit Antwort); die Kachel wird unter `/spotify_flex_app/spotify-flex-flow-card.js` bereitgestellt.

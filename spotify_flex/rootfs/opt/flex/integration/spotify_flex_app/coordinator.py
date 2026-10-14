@@ -23,6 +23,8 @@ class FlexCoordinator(DataUpdateCoordinator[dict]):
         self.client = client
         self._stop = asyncio.Event()
         self._ws_task: asyncio.Task | None = None
+        self.sleep_ends = None  # datetime (UTC) when the sleep timer pauses playback
+        self.sleep_cancel = None
 
     async def _async_update_data(self) -> dict:
         try:
@@ -37,6 +39,9 @@ class FlexCoordinator(DataUpdateCoordinator[dict]):
             self.hass, self.client.events(self._on_message, self._stop), f"{DOMAIN}_ws")
 
     async def stop_push(self) -> None:
+        if self.sleep_cancel:
+            self.sleep_cancel()
+            self.sleep_cancel = None
         self._stop.set()
         if self._ws_task:
             self._ws_task.cancel()

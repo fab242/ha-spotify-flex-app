@@ -31,6 +31,20 @@ Sie legt an:
 
 Die Integration spricht nur lokal mit der App (127.0.0.1, mit eigenem Token).
 
+### Player-Kachel
+
+Die Integration bringt die Kachel **Spotify Flex Flow** mit (Aufbau wie HOMEii Flow). Ressource: `/spotify_flex_app/spotify-flex-flow-card.js` (Typ *JavaScript-Modul*). Karte:
+
+```yaml
+type: custom:spotify-flex-flow-card
+entity: media_player.spotify_flex_player
+height: 600          # optional
+lyrics_offset: 2.3   # optional: Sekunden AirPlay-Verzögerung für den Liedtext
+cover_flow: true     # optional: nächstes Cover neben dem aktuellen
+```
+
+Liedtexte kommen von lrclib.net (Titel, Künstler, Album und Dauer werden dorthin gesendet). Passt der Liedtext nicht genau zum Ton, lässt er sich im Liedtext-Fenster mit −/+ verschieben; die Einstellung merkt sich der Browser.
+
 ## Voraussetzungen und Grenzen
 
 * Spotify Premium.

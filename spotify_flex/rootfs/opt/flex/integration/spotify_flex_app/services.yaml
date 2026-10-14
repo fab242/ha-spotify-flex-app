@@ -1,0 +1,42 @@
+search:
+  fields:
+    query:
+      required: true
+      example: "Delerium"
+      selector:
+        text:
+    types:
+      example: ["track", "album"]
+      selector:
+        select:
+          multiple: true
+          options: [track, artist, album, playlist, show, episode, audiobook]
+queue:
+add_to_queue:
+  fields:
+    uri:
+      required: true
+      example: "spotify:track:4uLU6hMCjMI75M1A2tKUQC"
+      selector:
+        text:
+like:
+  fields:
+    action:
+      default: status
+      selector:
+        select:
+          options: [status, save, remove, toggle]
+    uri:
+      example: "spotify:track:4uLU6hMCjMI75M1A2tKUQC"
+      selector:
+        text:
+sleep_timer:
+  fields:
+    minutes:
+      required: true
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 480
+          unit_of_measurement: min

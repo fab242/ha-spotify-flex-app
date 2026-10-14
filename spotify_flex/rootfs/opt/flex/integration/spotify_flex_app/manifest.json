@@ -1,0 +1,13 @@
+{
+  "domain": "spotify_flex_app",
+  "name": "Spotify Flex Player",
+  "codeowners": ["@fab242"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/fab242/ha-spotify-flex-app",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/fab242/ha-spotify-flex-app/issues",
+  "requirements": [],
+  "version": "1.1.0"
+}

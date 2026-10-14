@@ -23,6 +23,8 @@ const ICON = {
   remove: "M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z",
   up: "M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6z",
   down: "M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z",
+  trash: "M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
+  power: "M13 3h-2v10h2V3zm4.8 2.2-1.4 1.4A6.9 6.9 0 0 1 19 12a7 7 0 1 1-11.4-5.4L6.2 5.2A9 9 0 1 0 21 12a8.9 8.9 0 0 0-3.2-6.8z",
   edit: "M3 17.2V21h3.8l11-11-3.8-3.8-11 11zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.8L20.7 7z",
   open: "M14 3v2h3.6l-9.8 9.8 1.4 1.4L19 6.4V10h2V3h-7zm5 16H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7z",
   loading: "M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z",
@@ -44,7 +46,7 @@ const TABS = [
 ];
 
 const S = {
-  state: null, player: null, receivedAt: 0, speakers: [], tab: "playlists", stack: [],
+  state: null, player: null, receivedAt: 0, speakers: [], groups: [], activeGroup: null, tab: "playlists", stack: [],
   page: null, loading: false, error: null, query: "", liked: null, busy: new Set(), showSetup: false,
 };
 
@@ -89,6 +91,7 @@ async function loadState() {
   try {
     S.state = await api("api/state");
     S.speakers = S.state.speakers || [];
+    S.groups = S.state.groups || []; S.activeGroup = S.state.active_group || null;
     setPlayer(S.state.player);
   } catch (err) {
     S.state = null;
@@ -119,7 +122,7 @@ function connectWs() {
   let ws;
   try { ws = new WebSocket(url); } catch (_) { setTimeout(connectWs, 5000); return; }
   ws.onmessage = (ev) => {
-    try { const m = JSON.parse(ev.data); if (m.type === "status") setPlayer(m.data); } catch (_) { /* ignore */ }
+    try { const m = JSON.parse(ev.data); if (m.type === "status") setPlayer(m.data); else if (m.type === "speakers") applySpeakers(m.data); } catch (_) { /* ignore */ }
   };
   ws.onclose = () => setTimeout(connectWs, 4000);
 }
@@ -260,6 +263,29 @@ $("#now").addEventListener("click", async (ev) => {
 $("#now").addEventListener("change", (ev) => { if (ev.target.dataset.act === "volume") player("volume", { percent: Number(ev.target.value) }); });
 
 /* ------------------------------------------------------------- speakers */
+function applySpeakers(d) {
+  if (!d) return;
+  if (d.speakers) S.speakers = d.speakers;
+  if (d.groups) S.groups = d.groups;
+  S.activeGroup = d.active_group || null;
+  const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#speakers");
+  if (!typing) renderSpeakers();
+  renderSetup();
+}
+
+function renderGroups() {
+  const selected = S.speakers.filter((s) => s.selected);
+  const names = (g) => g.speakers.map((id) => (S.speakers.find((s) => s.id === id) || {}).name).filter(Boolean).join(", ");
+  const chips = S.groups.map((g) => `
+    <div class="gchip ${g.id === S.activeGroup ? "sel" : ""}" data-gid="${esc(g.id)}">
+      <button class="gname" data-act="grp-on" title="${esc(names(g) || "Lautsprecher derzeit nicht gefunden")}">${esc(g.name)}<small>${g.speakers.length}</small></button>
+      <button class="gx" data-act="grp-menu" aria-label="Gruppe ${esc(g.name)} bearbeiten">${svg("more")}</button>
+    </div>`).join("");
+  const canSave = selected.length > 0 && !S.activeGroup;
+  return `<div class="groups">${chips}${canSave ? `<button class="gadd" data-act="grp-save">+ Auswahl als Gruppe</button>` : ""}</div>
+    ${!S.groups.length && !canSave ? `<p class="hint small">Tipp: mehrere Lautsprecher einschalten und als Gruppe speichern.</p>` : ""}`;
+}
+
 function renderSpeakers() {
   const el = $("#speakers");
   const err = S.state && S.state.speaker_error;
@@ -269,13 +295,55 @@ function renderSpeakers() {
       <button class="switch" role="switch" aria-checked="${s.selected}" data-act="toggle" aria-label="${esc(s.name)} ${s.selected ? "ausschalten" : "einschalten"}"></button>
       ${s.selected ? `<div class="range">${svg("volLow")}<input type="range" min="0" max="100" value="${s.volume ?? 50}" data-act="spk-vol" aria-label="Lautstärke ${esc(s.name)}">${svg("volHigh")}</div>` : ""}
     </div>`).join("");
-  el.innerHTML = `<h2>${svg("speaker")}<span class="sp">Lautsprecher</span><button class="icon-btn" data-act="spk-refresh" aria-label="Lautsprecher neu suchen">${svg("loading")}</button></h2>
+  el.innerHTML = `<h2>${svg("speaker")}<span class="sp">Lautsprecher</span><button class="icon-btn" data-act="spk-off" aria-label="Alle Lautsprecher aus">${svg("power")}</button><button class="icon-btn" data-act="spk-refresh" aria-label="Lautsprecher neu suchen">${svg("loading")}</button></h2>
+    ${S.speakers.length ? renderGroups() : ""}
     ${rows || `<p class="hint ${err ? "err" : ""}">${esc(err || "Noch keine AirPlay-Lautsprecher gefunden. HomePods müssen im selben Netz und eingeschaltet sein; die Suche läuft automatisch.")}</p>`}`;
 }
 
 $("#speakers").addEventListener("click", async (ev) => {
   const act = ev.target.closest("[data-act]")?.dataset.act;
   if (act === "spk-refresh") return once("spk", async () => { S.speakers = (await api("api/speakers")).speakers; renderSpeakers(); renderSetup(); });
+  if (act === "spk-off") return once("spk", async () => applySpeakers(await api("api/speakers", { method: "POST", body: { speakers: [] } })));
+  if (act === "grp-save") {
+    const ids = S.speakers.filter((s) => s.selected).map((s) => s.id);
+    const name = prompt("Name der Gruppe (z. B. Erdgeschoss, Überall):");
+    if (!name) return;
+    return once("grp", async () => { applySpeakers(await api("api/groups", { method: "POST", body: { name, speakers: ids } })); toast(`Gruppe „${name}“ gespeichert`); });
+  }
+  if (act === "grp-on") {
+    const gid = ev.target.closest(".gchip").dataset.gid;
+    return once("grp", async () => { const r = await api(`api/groups/${encodeURIComponent(gid)}/activate`, { method: "POST", body: {} }); applySpeakers(r); if (r.warning) toast(r.warning, true); });
+  }
+  if (act === "grp-menu") {
+    const g = S.groups.find((x) => x.id === ev.target.closest(".gchip").dataset.gid);
+    if (!g) return;
+    const card = sheet(`<h3>Gruppe „${esc(g.name)}“</h3>
+      <div class="list">
+        <button class="row" style="grid-template-columns:48px 1fr" data-gact="update"><span class="ic">${svg("speaker")}</span><span class="t"><span class="n">Aktuelle Auswahl übernehmen</span><span class="s">${esc(S.speakers.filter((s) => s.selected).map((s) => s.name).join(", ") || "– nichts eingeschaltet –")}</span></span></button>
+        <button class="row" style="grid-template-columns:48px 1fr" data-gact="rename"><span class="ic">${svg("edit")}</span><span class="t"><span class="n">Umbenennen</span></span></button>
+        <button class="row" style="grid-template-columns:48px 1fr" data-gact="delete"><span class="ic">${svg("trash")}</span><span class="t"><span class="n">Gruppe löschen</span></span></button>
+      </div><div class="btn-row"><button class="btn" data-act="close">Schließen</button></div>`);
+    card.onclick = (e) => {
+      const gact = e.target.closest("[data-gact]")?.dataset.gact;
+      if (!gact) return;
+      const path = `api/groups/${encodeURIComponent(g.id)}`;
+      once("grp", async () => {
+        if (gact === "update") {
+          const ids = S.speakers.filter((s) => s.selected).map((s) => s.id);
+          applySpeakers(await api(path, { method: "PUT", body: { speakers: ids } }));
+        } else if (gact === "rename") {
+          const name = prompt("Neuer Name:", g.name);
+          if (!name) return;
+          applySpeakers(await api(path, { method: "PUT", body: { name } }));
+        } else if (gact === "delete") {
+          if (!confirm(`Gruppe „${g.name}“ löschen?`)) return;
+          applySpeakers(await api(path, { method: "DELETE" }));
+        }
+        closeSheet();
+      });
+    };
+    return;
+  }
   if (act !== "toggle") return;
   const id = ev.target.closest(".spk").dataset.id;
   const spk = S.speakers.find((s) => s.id === id);
@@ -285,8 +353,7 @@ $("#speakers").addEventListener("click", async (ev) => {
       const pin = prompt(`${spk.name} verlangt eine Bestätigung. Bitte die PIN eingeben, die der Lautsprecher anzeigt (bei HomePods meist nicht nötig – sonst in der Home-App „Lautsprecherzugriff: Alle im selben Netzwerk“ erlauben):`);
       if (pin) body.pin = pin;
     }
-    S.speakers = (await api(`api/speakers/${encodeURIComponent(id)}`, { method: "POST", body })).speakers;
-    renderSpeakers(); renderSetup();
+    applySpeakers(await api(`api/speakers/${encodeURIComponent(id)}`, { method: "POST", body }));
   });
 });
 $("#speakers").addEventListener("change", (ev) => {
@@ -525,6 +592,10 @@ async function openSettings() {
   const card = sheet(`<h3>Einstellungen</h3>
     <button class="menu-item" data-s="setup">${svg("edit")}<span>Einrichtung &amp; Anmeldungen</span></button>
     ${netHtml()}
+    <h3 style="margin-top:16px">Home Assistant</h3>
+    <p class="hint">${esc({ installed: "Integration „Spotify Flex Player“ installiert – Home Assistant einmal neu starten, dann unter Geräte & Dienste hinzufügen.", updated: "Integration aktualisiert – Home Assistant einmal neu starten.", current: "Integration „Spotify Flex Player“ ist installiert und aktuell.", disabled: "Integration ist in den App-Optionen ausgeschaltet.", unavailable: "Integration konnte nicht installiert werden (kein Zugriff auf den HA-Konfigurationsordner).", error: "Integration konnte nicht installiert werden – siehe Protokoll." }[S.state && S.state.integration] || "Status unbekannt.")}</p>
+    <button class="menu-item" data-s="token">${svg("open")}<span>API-Token anzeigen (für manuelle Einrichtung)</span></button>
+    <p class="hint" id="token-out" hidden></p>
     <h3 style="margin-top:16px">Spotify-Connect-Geräte</h3>
     <p class="hint">Wiedergabe von einem anderen Gerät hierher holen oder dorthin abgeben.</p>
     ${devErr ? `<p class="hint err">${esc(devErr)}</p>` : devices.map((d) => `<button class="menu-item" data-dev="${esc(d.id)}">${svg("device")}<span>${esc(d.name)}${d.id === selfId ? " (diese App)" : ""}${d.is_active ? " · aktiv" : ""}</span></button>`).join("") || `<p class="hint">Keine Geräte gemeldet.</p>`}
@@ -538,6 +609,12 @@ async function openSettings() {
     const s = ev.target.closest("[data-s]")?.dataset.s;
     const dev = ev.target.closest("[data-dev]")?.dataset.dev;
     if (s === "setup") { closeSheet(); S.showSetup = true; renderSetup(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    if (s === "token") once("tok", async () => {
+      const t = await api("api/ha/token");
+      const out = $("#token-out");
+      out.hidden = false;
+      out.innerHTML = `Host <code class="inline">127.0.0.1</code>, Port <code class="inline">${esc(t.port)}</code>, Token <code class="inline">${esc(t.token)}</code>`;
+    });
     if (dev) once("tr", async () => { await api("api/devices/transfer", { method: "POST", body: { device_id: dev, play: true } }); closeSheet(); toast("Wiedergabe übertragen."); });
     if (s === "send") once("req", async () => {
       const out = $("#req-out");

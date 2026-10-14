@@ -16,3 +16,6 @@ configuration:
     description: Also advertise the receiver via Zeroconf to Spotify apps on the LAN.
   log_level:
     name: Log level
+  ha_integration:
+    name: Home Assistant player
+    description: Installs the "Spotify Flex Player" integration (player, speakers and groups as entities for tiles and automations).

@@ -16,3 +16,6 @@ configuration:
     description: Zusätzlich per Zeroconf in der Spotify-App im WLAN anbieten.
   log_level:
     name: Protokollstufe
+  ha_integration:
+    name: Home-Assistant-Player
+    description: Installiert die Integration „Spotify Flex Player“ (Player, Lautsprecher, Gruppen als Entitäten für Kacheln und Automationen).

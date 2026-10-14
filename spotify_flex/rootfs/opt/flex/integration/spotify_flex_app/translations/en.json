@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "hassio_confirm": {
+        "title": "Spotify Flex Player",
+        "description": "The Spotify Flex app was found. Create the player and speaker entities in Home Assistant?"
+      },
+      "user": {
+        "title": "Spotify Flex Player",
+        "description": "Normally this sets itself up from the app. The API token is shown in the app settings.",
+        "data": {"host": "Host", "port": "Port", "token": "API token"}
+      },
+      "reauth_confirm": {
+        "title": "Spotify Flex Player",
+        "description": "The API token no longer matches. Enter the current token from the app settings.",
+        "data": {"token": "API token"}
+      }
+    },
+    "error": {
+      "cannot_connect": "The Spotify Flex app is not reachable.",
+      "invalid_auth": "The API token is wrong."
+    },
+    "abort": {
+      "already_configured": "Spotify Flex is already set up.",
+      "cannot_connect": "The Spotify Flex app is not reachable.",
+      "invalid_auth": "The API token is wrong.",
+      "reauth_successful": "Token updated."
+    }
+  },
+  "entity": {
+    "media_player": {
+      "player": {"name": "Player"}
+    },
+    "select": {
+      "group": {"name": "Speaker group"}
+    }
+  }
+}

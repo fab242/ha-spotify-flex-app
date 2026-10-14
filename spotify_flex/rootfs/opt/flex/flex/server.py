@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 import logging
 import subprocess
 from pathlib import Path
@@ -15,14 +16,16 @@ from .api import SpotifyAuthError, SpotifyClient, SpotifyError, valid_id
 from .browse import browse
 from .const import INGRESS_PORT, LIBRESPOT_STATE, OPTIONS_FILE, REDIRECT_URI, VERSION
 from .oauth import WebAuth
-from . import netheal
+from . import hassbridge, netheal
+from .groups import GroupStore
 from .receiver import Librespot, OwnTone
 
 logging.basicConfig(level=logging.INFO, format="[spotify-flex] %(levelname)s %(message)s")
 _LOGGER = logging.getLogger("flex")
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
-ALLOWED_PEERS = {"172.30.32.2", "127.0.0.1", "::1"}  # Supervisor ingress proxy + local
+INGRESS_PEER = "172.30.32.2"  # Supervisor ingress proxy (the app UI)
+LOCAL_PEERS = {"127.0.0.1", "::1"}  # Home Assistant core (host network) - needs the API token
 
 
 def load_options() -> dict:
@@ -54,6 +57,9 @@ class App:
         self.stop = asyncio.Event()
         self.tasks: list[asyncio.Task] = []
         self.auth_pending: dict | None = None  # device-code login in progress
+        self.groups = GroupStore()
+        self.token = hassbridge.api_token()
+        self.integration = "unknown"
 
     # ------------------------------------------------------------ lifecycle
     async def start(self, _app: web.Application) -> None:
@@ -66,7 +72,31 @@ class App:
             asyncio.create_task(self.receiver.events(self.on_event, self.stop)),
             asyncio.create_task(self.poll_status()),
             asyncio.create_task(self.heal_loop()),
+            asyncio.create_task(self.bridge()),
         ]
+
+    async def bridge(self) -> None:
+        """Install/refresh the bundled HA integration and announce the app via discovery."""
+        if self.options.get("ha_integration", True) is False:
+            self.integration = "disabled"
+            return
+        try:
+            self.integration = await asyncio.get_running_loop().run_in_executor(
+                None, hassbridge.install_integration)
+        except OSError as err:
+            self.integration = "error"
+            _LOGGER.warning("integration install failed: %s", err)
+            return
+        _LOGGER.info("HA integration: %s", self.integration)
+        if self.integration in ("installed", "updated"):
+            await hassbridge.notify(
+                self.session, "Spotify Flex",
+                "Die Home-Assistant-Integration „Spotify Flex Player“ wurde "
+                + ("installiert" if self.integration == "installed" else "aktualisiert")
+                + ". Bitte Home Assistant einmal neu starten – danach erscheint sie unter "
+                "Einstellungen → Geräte & Dienste als „Entdeckt“.")
+        await asyncio.sleep(5)
+        await hassbridge.push_discovery(self.session, self.token)
 
     async def heal_loop(self) -> None:
         """Re-check unreachable Spotify servers every 30 minutes (first run is at boot)."""
@@ -179,6 +209,7 @@ class App:
             speakers = await self.owntone.outputs()
         except SpotifyError as err:
             speaker_error = str(err)
+        groups = self.groups.all()
         return {
             "version": VERSION,
             "receiver": {"running": receiver_ok, "logged_in": logged_in or bool(self.status),
@@ -188,7 +219,10 @@ class App:
             "player": self.player_view(),
             "speakers": speakers,
             "speaker_error": speaker_error,
+            "groups": groups,
+            "active_group": GroupStore.active(groups, speakers),
             "network": self.network_report(),
+            "integration": self.integration,
         }
 
     @staticmethod
@@ -209,7 +243,12 @@ def build_app() -> web.Application:
     @web.middleware
     async def guard(request: web.Request, handler):
         peer = request.remote or ""
-        if peer not in ALLOWED_PEERS:
+        if peer in LOCAL_PEERS:
+            auth = request.headers.get("Authorization", "")
+            given = auth[7:] if auth.startswith("Bearer ") else request.query.get("token", "")
+            if not secrets.compare_digest(given.encode(), flex.token.encode()):
+                return web.Response(status=401, text="API-Token fehlt oder ist falsch.")
+        elif peer != INGRESS_PEER:
             return web.Response(status=403, text="Nur über Home Assistant erreichbar.")
         try:
             return await handler(request)
@@ -262,6 +301,12 @@ def build_app() -> web.Application:
     @r.get("/api/state")
     async def get_state(_request):
         return ok(await flex.state())
+
+    @r.get("/api/ha/token")
+    async def ha_token(request):
+        if request.remote != INGRESS_PEER:  # only shown inside the app UI
+            raise web.HTTPForbidden(text="Nur in der App sichtbar.")
+        return ok({"token": flex.token, "port": INGRESS_PORT})
 
     @r.post("/api/web/authorize")
     async def web_authorize(_request):
@@ -443,7 +488,60 @@ def build_app() -> web.Application:
                     "Details stehen im Protokoll der App (Einstellungen → Apps → Spotify Flex → Protokoll).",
                     409) from err
             raise
-        return ok({"speakers": await flex.owntone.outputs()})
+        return ok(await speakers_changed())
+
+    async def speakers_changed() -> dict:
+        speakers = await flex.owntone.outputs()
+        groups = flex.groups.all()
+        data = {"speakers": speakers, "groups": groups, "active_group": GroupStore.active(groups, speakers)}
+        await flex.broadcast({"type": "speakers", "data": data})
+        return data
+
+    @r.post("/api/speakers")
+    async def api_speakers_set(request):
+        """Select exactly the given speakers ({"speakers": [ids]}), others are switched off."""
+        data = await body(request)
+        await flex.owntone.set_outputs([str(i) for i in data.get("speakers") or []])
+        return ok(await speakers_changed())
+
+    # ---- saved speaker groups
+    @r.get("/api/groups")
+    async def api_groups(_request):
+        speakers = await flex.owntone.outputs()
+        groups = flex.groups.all()
+        return ok({"groups": groups, "active_group": GroupStore.active(groups, speakers)})
+
+    @r.post("/api/groups")
+    async def api_group_create(request):
+        data = await body(request)
+        group = flex.groups.create(str(data.get("name", "")), data.get("speakers") or [])
+        result = await speakers_changed()
+        return ok(dict(result, group=group))
+
+    @r.put("/api/groups/{gid}")
+    async def api_group_update(request):
+        data = await body(request)
+        flex.groups.update(request.match_info["gid"], name=data.get("name"), speakers=data.get("speakers"))
+        return ok(await speakers_changed())
+
+    @r.delete("/api/groups/{gid}")
+    async def api_group_delete(request):
+        flex.groups.delete(request.match_info["gid"])
+        return ok(await speakers_changed())
+
+    @r.post("/api/groups/{gid}/activate")
+    async def api_group_activate(request):
+        group = flex.groups.get(request.match_info["gid"])
+        known = {s["id"] for s in await flex.owntone.outputs()}
+        ids = [i for i in group["speakers"] if i in known]
+        if not ids:
+            raise SpotifyError(f"Kein Lautsprecher der Gruppe „{group['name']}“ ist gerade erreichbar.", 409)
+        await flex.owntone.set_outputs(ids)
+        result = await speakers_changed()
+        missing = len(group["speakers"]) - len(ids)
+        if missing:
+            result["warning"] = f"{missing} Lautsprecher der Gruppe ist gerade nicht erreichbar."
+        return ok(result)
 
     # ---- other Spotify Connect devices (optional hand-over)
     @r.get("/api/devices")

@@ -157,6 +157,13 @@ class OwnTone:
             raise SpotifyError("Ungültige Lautsprecher-ID.", 400)
         await _call(self._s, "PUT", f"{OWNTONE_URL}/api/outputs/{output_id}", body, what="OwnTone")
 
+    async def set_outputs(self, output_ids: list[str]) -> None:
+        """Select exactly these outputs (all others are deselected)."""
+        ids = [str(i) for i in output_ids]
+        if not all(i.isdigit() for i in ids):
+            raise SpotifyError("Ungültige Lautsprecher-ID.", 400)
+        await _call(self._s, "PUT", OWNTONE_URL + "/api/outputs/set", {"outputs": ids}, what="OwnTone")
+
     async def player(self) -> dict:
         return await _call(self._s, "GET", OWNTONE_URL + "/api/player", what="OwnTone") or {}
 

@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "hassio_confirm": {
+        "title": "Spotify Flex Player",
+        "description": "Die Spotify-Flex-App wurde gefunden. Player und Lautsprecher in Home Assistant anlegen?"
+      },
+      "user": {
+        "title": "Spotify Flex Player",
+        "description": "Normalerweise richtet sich die Integration automatisch über die App ein. Den API-Token findest du in der App unter Einstellungen.",
+        "data": {"host": "Host", "port": "Port", "token": "API-Token"}
+      },
+      "reauth_confirm": {
+        "title": "Spotify Flex Player",
+        "description": "Der API-Token passt nicht mehr. Bitte den aktuellen Token aus der App (Einstellungen) eintragen.",
+        "data": {"token": "API-Token"}
+      }
+    },
+    "error": {
+      "cannot_connect": "Die Spotify-Flex-App ist nicht erreichbar.",
+      "invalid_auth": "Der API-Token ist falsch."
+    },
+    "abort": {
+      "already_configured": "Spotify Flex ist schon eingerichtet.",
+      "cannot_connect": "Die Spotify-Flex-App ist nicht erreichbar.",
+      "invalid_auth": "Der API-Token ist falsch.",
+      "reauth_successful": "Token aktualisiert."
+    }
+  },
+  "entity": {
+    "media_player": {
+      "player": {"name": "Player"}
+    },
+    "select": {
+      "group": {"name": "Lautsprecher-Gruppe"}
+    }
+  }
+}

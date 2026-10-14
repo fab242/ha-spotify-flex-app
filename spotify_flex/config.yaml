@@ -1,5 +1,5 @@
 name: Spotify Flex
-version: "1.0.7"
+version: "1.1.0"
 slug: spotify_flex
 description: Eigenständiger Spotify-Player mit Connect-Empfänger und AirPlay-Ausgabe an HomePods
 url: https://github.com/fab242/ha-spotify-flex-app
@@ -14,8 +14,14 @@ ingress: true
 ingress_port: 8099
 panel_icon: mdi:spotify
 panel_title: Spotify
+homeassistant_api: true
+hassio_api: true
+discovery:
+  - spotify_flex_app
 map:
   - type: addon_config
+    read_only: false
+  - type: homeassistant_config
     read_only: false
 options:
   device_name: Home Flex
@@ -24,6 +30,7 @@ options:
   normalisation: true
   zeroconf: false
   log_level: info
+  ha_integration: true
 schema:
   device_name: str
   client_id: str?
@@ -31,3 +38,4 @@ schema:
   normalisation: bool
   zeroconf: bool
   log_level: list(trace|debug|info|warn|error)
+  ha_integration: bool

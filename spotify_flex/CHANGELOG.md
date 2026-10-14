@@ -30,3 +30,9 @@
 
 - Startprüfung, ob die AirPlay-2-Zeitports 319/320 frei sind (Music Assistant belegt sie ggf.).
 - OwnTone protokolliert Warnungen; klarere Meldung, wenn ein Lautsprecher nicht verbindet (PIN, z. B. Apple TV).
+
+## 1.1.0
+
+- Lautsprecher-Gruppen: speichern, mit einem Tipp aktivieren, umbenennen, aktualisieren, löschen. Dazu ein Knopf „alle aus“.
+- Neue Home-Assistant-Integration „Spotify Flex Player“ wird von der App mitgebracht und automatisch entdeckt: Player-Entität (Mediathek, Quelle/Gruppen, Gruppieren), eine Player-Entität je Lautsprecher und eine Auswahl für Gruppen.
+- Direkter Zugriff von Home Assistant nur noch mit API-Token.

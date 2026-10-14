@@ -15,9 +15,26 @@ Eigenständiger Spotify-Player für Home Assistant – ohne Handy, ohne Music As
    * **Bibliothek verbinden:** Mit Spotify anmelden, die Adresse der danach nicht ladenden Seite (`http://127.0.0.1:8765/callback?code=…`) kopieren und einfügen. Einmalig.
    * **Lautsprecher einschalten.**
 
+## Gruppen
+
+Mehrere Lautsprecher einschalten und unter *Lautsprecher* auf **„+ Auswahl als Gruppe“** tippen. Eine Gruppe schaltet mit einem Tipp genau ihre Lautsprecher ein und alle anderen aus. Über das ⋮ an der Gruppe lässt sie sich umbenennen, mit der aktuellen Auswahl aktualisieren oder löschen.
+
+## Home Assistant (Kacheln, Automationen)
+
+Die App installiert automatisch die Integration **Spotify Flex Player** (abschaltbar über die Option *Home-Assistant-Player*). Nach dem ersten Start einmal Home Assistant neu starten. Danach erscheint sie unter *Einstellungen → Geräte & Dienste* als „Entdeckt“ und wird mit einem Klick hinzugefügt.
+
+Sie legt an:
+
+* `media_player.spotify_flex_player`: Wiedergabe, Lautstärke, Zufall und Wiederholen, Mediathek durchsuchen, Quelle (Gruppen und einzelne Lautsprecher) und Gruppieren über den Standard-Dialog von Home Assistant.
+* je Lautsprecher einen Player, z. B. `media_player.badezimmer_spotify_flex`: ein- und ausschalten, eigene Lautstärke, zur Wiedergabe hinzufügen (*Gruppieren*).
+* `select.spotify_flex_lautsprecher_gruppe`: gespeicherte Gruppe wählen oder „Aus“.
+
+Die Integration spricht nur lokal mit der App (127.0.0.1, mit eigenem Token).
+
 ## Voraussetzungen und Grenzen
 
 * Spotify Premium.
+* **Music Assistant darf nicht gleichzeitig laufen.** Für AirPlay 2 belegt es dieselben Zeitports 319/320 wie diese App. Beim Start meldet das Protokoll, ob die Ports frei sind.
 * HomePods im selben Netz. Falls ein HomePod nicht reagiert: in der Home-App unter *Zuhause-Einstellungen → Lautsprecher und TV* den Zugriff auf „Alle im selben Netzwerk“ stellen.
 * Die Web-API läuft über deine eigene Entwickler-App. Spotify-Kontingente und Einschränkungen des Entwicklungsmodus gelten weiter.
 * AirPlay hat etwa 2 Sekunden Verzögerung zwischen Tippen und Ton.

@@ -1,6 +1,6 @@
 """Constants shared by the Spotify Flex app backend."""
 
-VERSION = "1.0.7"
+VERSION = "1.1.0"
 
 API_BASE = "https://api.spotify.com/v1"
 AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
@@ -27,3 +27,9 @@ TOKEN_FILE = "/data/web_token.json"
 STATE_FILE = "/data/state.json"
 LIBRESPOT_STATE = "/config/go-librespot/state.json"
 INGRESS_PORT = 8099
+GROUPS_FILE = "/data/groups.json"
+API_TOKEN_FILE = "/data/api_token"
+INTEGRATION_DOMAIN = "spotify_flex_app"
+INTEGRATION_SRC = "/opt/flex/integration/spotify_flex_app"
+HA_CUSTOM_COMPONENTS = "/homeassistant/custom_components"
+SUPERVISOR_URL = "http://supervisor"

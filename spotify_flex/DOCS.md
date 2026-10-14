@@ -43,7 +43,7 @@ lyrics_offset: 2.3   # optional: Sekunden AirPlay-Verzögerung für den Liedtext
 cover_flow: true     # optional: nächstes Cover neben dem aktuellen
 ```
 
-Liedtexte kommen von lrclib.net (Titel, Künstler, Album und Dauer werden dorthin gesendet). Ein springender Punkt landet auf jedem Wort, wenn es gesungen wird. Passt der Liedtext nicht genau zum Ton: unter dem Liedtext genau beim Beginn einer Zeile auf **Takt** tippen (misst die Verzögerung) oder mit −/+ fein nachstellen; die Einstellung merkt sich der Browser.
+Liedtexte kommen von lrclib.net (Titel, Künstler, Album und Dauer werden dorthin gesendet). Ein springender Punkt landet auf jedem Wort, wenn es gesungen wird. Die Verzögerung zwischen Spotify und dem Lautsprecher misst die App laufend selbst (Attribut `audio_latency_ms` am Player); −/+ unter dem Liedtext ist nur noch Feinkorrektur. Zeilenanfänge kommen von lrclib.net, die Wortzeiten innerhalb einer Zeile werden nach Silben geschätzt.
 
 ## Voraussetzungen und Grenzen
 

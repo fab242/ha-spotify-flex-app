@@ -272,3 +272,25 @@ async def test_card_is_served(hass: HomeAssistant, fake: FakeApp, hass_client) -
     resp = await client.get("/spotify_flex_app/spotify-flex-flow-card.js")
     assert resp.status == 200
     assert "spotify-flex-flow-card" in await resp.text()
+
+
+async def test_audible_position_uses_app_timestamp(hass: HomeAssistant, fake: FakeApp) -> None:
+    """The app sends the audible position plus when it measured it; negative = starts later."""
+    from homeassistant.util import dt as dt_util
+
+    at = dt_util.utcnow().timestamp() * 1000 - 2000
+    fake.state["player"]["track"].update(position_ms=61500, position_at=at, latency_ms=4800)
+    await _setup_via_discovery(hass)
+    st = hass.states.get("media_player.spotify_flex_player")
+    assert st.attributes["media_position"] == 61.5
+    assert abs(st.attributes["media_position_updated_at"].timestamp() * 1000 - at) < 5
+    assert st.attributes["audio_latency_ms"] == 4800
+
+    coordinator = hass.config_entries.async_entries(DOMAIN)[0].runtime_data
+    new = copy.deepcopy(coordinator.data)
+    new["player"]["track"].update(uri="spotify:track:T9", position_ms=-3000, position_at=at)
+    coordinator.async_set_updated_data(new)
+    await hass.async_block_till_done()
+    st = hass.states.get("media_player.spotify_flex_player")
+    assert st.attributes["media_position"] == 0
+    assert abs(st.attributes["media_position_updated_at"].timestamp() * 1000 - (at + 3000)) < 5

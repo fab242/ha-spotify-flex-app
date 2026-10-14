@@ -173,3 +173,70 @@ class OwnTone:
 
     async def stop(self) -> None:
         await _call(self._s, "PUT", OWNTONE_URL + "/api/player/stop", what="OwnTone")
+
+
+class MetaPipe:
+    """Shairport-style metadata pipe next to the audio pipe (<pipe>.metadata).
+
+    OwnTone attaches each message to the audio it reads next and applies it when
+    that audio is actually heard (after its output buffer). Sending the Spotify
+    track position this way lets OwnTone's progress follow the audible position
+    exactly - which is what the synced lyrics need.
+    """
+
+    SAMPLE_RATE = 44100
+    BASE = 1_000_000  # RTP-like start value; must be non-zero
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        self._fd: int | None = None
+
+    @staticmethod
+    def item(code: str, data: bytes) -> bytes:
+        import base64
+        return (f"<item><type>{'ssnc'.encode().hex()}</type><code>{code.encode().hex()}</code>"
+                f"<length>{len(data)}</length>\n<data encoding=\"base64\">\n"
+                f"{base64.b64encode(data).decode()}</data></item>\n").encode()
+
+    @classmethod
+    def progress_item(cls, pos_ms: int, dur_ms: int | None) -> bytes:
+        start = cls.BASE
+        pos = start + int(pos_ms) * cls.SAMPLE_RATE // 1000
+        end = start + int(dur_ms or 0) * cls.SAMPLE_RATE // 1000
+        if end <= pos:
+            end = pos + cls.SAMPLE_RATE
+        return cls.item("prgr", f"{start}/{pos}/{end}".encode() + b"\0")
+
+    def _open(self) -> int | None:
+        import os
+        if self._fd is not None:
+            return self._fd
+        try:
+            self._fd = os.open(self.path, os.O_WRONLY | os.O_NONBLOCK)
+        except OSError:  # ENXIO: OwnTone is not reading (nothing playing)
+            self._fd = None
+        return self._fd
+
+    def send(self, payload: bytes) -> bool:
+        import os
+        for _ in range(2):
+            fd = self._open()
+            if fd is None:
+                return False
+            try:
+                os.write(fd, payload)
+                return True
+            except BlockingIOError:
+                return False
+            except OSError:  # reader went away -> reopen once
+                self.close()
+        return False
+
+    def close(self) -> None:
+        import os
+        if self._fd is not None:
+            try:
+                os.close(self._fd)
+            except OSError:
+                pass
+            self._fd = None

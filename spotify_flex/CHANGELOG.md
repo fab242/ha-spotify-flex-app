@@ -54,3 +54,8 @@
 
 - Liedtext mit springendem Punkt: landet auf jedem Wort, wenn es gesungen wird (Wortzeiten aus erweitertem LRC, sonst nach Silben geschätzt); gesungene Wörter werden dunkel.
 - Genauere Synchronisierung: Uhrabweichung zwischen Browser und Home Assistant wird ausgeglichen; Knopf „Takt“ misst den Versatz, wenn man beim Zeilenanfang tippt.
+
+## 1.4.0
+
+- Liedtext synchron zum hörbaren Ton: Die App meldet OwnTone über die Metadaten-Pipe die Spotify-Position und misst daraus die tatsächliche Verzögerung (Pipe, OwnTone-Puffer, AirPlay). Player-Position in Home Assistant = was gerade zu hören ist (auf Millisekunden, mit Messzeitpunkt).
+- Knopf „Takt“ entfernt; −/+ nur noch zur Feinkorrektur (0,1 s).

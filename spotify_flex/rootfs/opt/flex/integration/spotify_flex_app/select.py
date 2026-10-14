@@ -26,6 +26,10 @@ class FlexGroupSelect(CoordinatorEntity[FlexCoordinator], SelectEntity):
         self._attr_unique_id = "group"
         self._attr_device_info = main_device(coordinator)
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.coordinator.async_update_listeners()  # player lists this entity as group_entity
+
     @property
     def options(self) -> list[str]:
         return [OFF_OPTION] + [g["name"] for g in self.coordinator.groups]

@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.3.0";
+const CARD_VERSION = "1.4.0";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -123,14 +123,14 @@ class SpotifyFlexFlowCard extends HTMLElement {
     this._config = {
       entity: "media_player.spotify_flex_player",
       height: 600,
-      lyrics_offset: 2.3, // Sekunden – AirPlay-Puffer zwischen Spotify-Position und hörbarem Ton
+      lyrics_offset: 0, // Sekunden Feinkorrektur – die Audio-Verzögerung misst die App selbst
       cover_flow: true,
       ...config,
     };
     if (!/^media_player\./.test(this._config.entity)) throw new Error("entity muss ein media_player sein");
     this._ls = `sfflow:${this._config.entity}:`;
     this._s = {
-      sheet: null, lyricsOn: lsGet(this._ls + "lyrics", true), offset: lsGet(this._ls + "offset", null),
+      sheet: null, lyricsOn: lsGet(this._ls + "lyrics", true), offset: lsGet(this._ls + "fine", null),
       lib: { tab: "playlists", stack: [], view: lsGet(this._ls + "view", "grid"), query: "" },
       liked: null, likedUri: null, lyrics: null, lyricsKey: null, prevArt: null, lastArt: null,
       nextArt: null, queueKey: null, busy: new Set(),
@@ -209,6 +209,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const first = this._s.lastUpd === undefined;
     this._s.lastUpd = upd;
     if (first) return; // Wert beim Laden kann alt sein
+    if (!(Number(this._attrs.media_position) > 0)) return; // Startzeit in der Zukunft (Titelwechsel)
     const sample = Date.now() - new Date(upd).getTime();
     if (!Number.isFinite(sample)) return;
     const arr = (this._s.skews = [...(this._s.skews || []), sample].slice(-12));
@@ -617,24 +618,10 @@ class SpotifyFlexFlowCard extends HTMLElement {
 
   _setOffset(delta, absolute = null) {
     const v = absolute !== null ? absolute : this._offset() + delta;
-    this._s.offset = Math.max(-5, Math.min(10, Math.round(v * 100) / 100));
-    lsSet(this._ls + "offset", this._s.offset);
+    this._s.offset = Math.max(-3, Math.min(3, Math.round(v * 100) / 100));
+    lsSet(this._ls + "fine", this._s.offset);
     this.shadowRoot.querySelectorAll(".offset-val").forEach((el) => { el.textContent = `${this._s.offset.toFixed(1).replace(".", ",")} s`; });
     this._lyricTick(true);
-  }
-
-  /* „Takt“: im Moment tippen, in dem eine Zeile zu singen beginnt → Versatz wird gemessen */
-  _tapSync() {
-    const L = this._s.lyrics;
-    if (!L?.lines?.length) { this._toast("Für diesen Titel gibt es keinen getakteten Liedtext.", true); return; }
-    const raw = this._position() * 1000;
-    const heard = raw - this._offset() * 1000;
-    let best = 0;
-    L.lines.forEach((l, i) => { if (Math.abs(l.t - heard) < Math.abs(L.lines[best].t - heard)) best = i; });
-    const off = (raw - L.lines[best].t) / 1000;
-    if (off < -5 || off > 10) { this._toast("Das passte zu keiner Zeile – bitte genau beim Zeilenanfang tippen.", true); return; }
-    this._setOffset(0, off);
-    this._toast(`Liedtext angepasst: ${off.toFixed(1).replace(".", ",")} s Verzögerung`);
   }
 
   /* ------------------------------------------------------------- input */
@@ -681,9 +668,8 @@ class SpotifyFlexFlowCard extends HTMLElement {
       case "timer": return this._openTimer();
       case "speakers": return this._openSpeakers();
       case "close": return this._closeSheet();
-      case "off-minus": return this._setOffset(-0.2);
-      case "off-plus": return this._setOffset(0.2);
-      case "tap-sync": return this._tapSync();
+      case "off-minus": return this._setOffset(-0.1);
+      case "off-plus": return this._setOffset(0.1);
       // library sheet
       case "tab": this._s.lib.tab = btn.dataset.tab; this._s.lib.stack = []; return this._renderLibrary();
       case "lib-back": this._s.lib.stack.pop(); return this._renderLibrary();
@@ -791,11 +777,10 @@ class SpotifyFlexFlowCard extends HTMLElement {
   }
 
   _offsetCtl() {
-    return `<span class="offset" title="Liedtext an den Ton anpassen (AirPlay-Verzögerung)">
+    return `<span class="offset" title="Feinkorrektur – die Audio-Verzögerung wird automatisch gemessen">
       <button class="nb xs" data-a="off-minus" aria-label="Liedtext früher">${svg("minus")}</button>
       <span class="offset-val">${this._offset().toFixed(1).replace(".", ",")} s</span>
-      <button class="nb xs" data-a="off-plus" aria-label="Liedtext später">${svg("plus")}</button>
-      <button class="pill xs" data-a="tap-sync" title="Genau dann tippen, wenn eine Zeile zu singen beginnt">Takt</button></span>`;
+      <button class="nb xs" data-a="off-plus" aria-label="Liedtext später">${svg("plus")}</button></span>`;
   }
 
   /* speakers */

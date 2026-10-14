@@ -5,7 +5,10 @@ import asyncio
 import json
 import secrets
 import logging
+import statistics
 import subprocess
+import time
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -18,12 +21,13 @@ from .const import INGRESS_PORT, LIBRESPOT_STATE, OPTIONS_FILE, REDIRECT_URI, VE
 from .oauth import WebAuth
 from . import hassbridge, netheal
 from .groups import GroupStore
-from .receiver import Librespot, OwnTone
+from .receiver import Librespot, MetaPipe, OwnTone
 
 logging.basicConfig(level=logging.INFO, format="[spotify-flex] %(levelname)s %(message)s")
 _LOGGER = logging.getLogger("flex")
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
+LATENCY_FILE = Path("/data/audio_latency.json")
 INGRESS_PEER = "172.30.32.2"  # Supervisor ingress proxy (the app UI)
 LOCAL_PEERS = {"127.0.0.1", "::1"}  # Home Assistant core (host network) - needs the API token
 
@@ -60,6 +64,19 @@ class App:
         self.groups = GroupStore()
         self.token = hassbridge.api_token()
         self.integration = "unknown"
+        # audible position: Spotify position minus the measured audio delay (pipe + OwnTone + AirPlay)
+        self.meta = MetaPipe("/music/spotify.metadata")
+        self.status_at = 0.0
+        self.sync_track: str | None = None
+        self.sync_since = 0.0
+        self.sync_wake: asyncio.Event | None = None
+        self.latency = deque(maxlen=15)
+        try:
+            saved = json.loads(LATENCY_FILE.read_text()).get("latency_ms")
+            if isinstance(saved, (int, float)) and 0 <= saved <= 12000:
+                self.latency.append(float(saved))
+        except (OSError, ValueError):
+            pass
 
     # ------------------------------------------------------------ lifecycle
     async def start(self, _app: web.Application) -> None:
@@ -73,6 +90,7 @@ class App:
             asyncio.create_task(self.poll_status()),
             asyncio.create_task(self.heal_loop()),
             asyncio.create_task(self.bridge()),
+            asyncio.create_task(self.audio_sync_loop()),
         ]
 
     async def bridge(self) -> None:
@@ -137,14 +155,75 @@ class App:
         else:
             try:
                 self.status = await self.receiver.status()
+                self.status_at = time.time()
             except SpotifyError:
                 self.status = None
         if broadcast:
             await self.broadcast({"type": "status", "data": self.player_view()})
         return self.status or {}
 
+    # ------------------------------------------------- audible position sync
+    async def audio_sync_loop(self) -> None:
+        """Every 3 s (and right after track changes/seeks) tell OwnTone the Spotify position of
+        the audio it reads, then measure how far the audible position lags behind."""
+        self.sync_wake = asyncio.Event()
+        while not self.stop.is_set():
+            woke = False
+            try:
+                await asyncio.wait_for(self.sync_wake.wait(), timeout=3)
+                woke = True
+            except asyncio.TimeoutError:
+                pass
+            self.sync_wake.clear()
+            if woke:
+                await asyncio.sleep(0.3)  # let the new audio reach the pipe
+            try:
+                await self.audio_sync()
+            except Exception as err:  # noqa: BLE001 - keep the loop alive
+                _LOGGER.debug("audio sync: %s", err)
+
+    async def audio_sync(self) -> None:
+        if self.auth_pending:
+            return
+        try:
+            st = await self.receiver.status()
+        except SpotifyError:
+            return
+        if not st:
+            return
+        self.status, self.status_at = st, time.time()
+        track = st.get("track") or {}
+        uri, pos, dur = track.get("uri"), track.get("position"), track.get("duration")
+        if st.get("stopped") or st.get("paused") or not uri or pos is None:
+            return
+        if uri != self.sync_track:
+            self.sync_track, self.sync_since = uri, time.time()
+        self.meta.send(MetaPipe.progress_item(int(pos), dur))
+        if time.time() - self.sync_since < 9:  # our marks for this track are not audible yet
+            return
+        try:
+            pl = await self.owntone.player()
+        except SpotifyError:
+            return
+        prog = pl.get("item_progress_ms")
+        if pl.get("state") != "play" or not isinstance(prog, (int, float)) or prog <= 0:
+            return
+        lat = pos + (time.time() - self.status_at) * 1000 - prog
+        if 0 <= lat <= 12000:
+            self.latency.append(lat)
+            if len(self.latency) % 5 == 0:
+                try:
+                    LATENCY_FILE.write_text(json.dumps({"latency_ms": round(self.latency_ms())}))
+                except OSError:
+                    pass
+
+    def latency_ms(self) -> float | None:
+        return statistics.median(self.latency) if self.latency else None
+
     async def on_event(self, event: dict) -> None:
         kind = event.get("type")
+        if kind in ("metadata", "playing", "seek", "will_play", "active") and self.sync_wake:
+            self.sync_wake.set()
         if kind in ("metadata", "playing", "paused", "stopped", "not_playing", "seek", "volume",
                     "shuffle_context", "repeat_context", "repeat_track", "active", "inactive",
                     "receiver_connected", "will_play"):
@@ -162,6 +241,14 @@ class App:
             self.sockets.discard(ws)
 
     # -------------------------------------------------------------- views
+    def heard_position(self, pos: int | None) -> int | None:
+        """Track position that is audible right now (may be negative right after a track
+        change: the previous track is still playing from the buffers)."""
+        if pos is None:
+            return None
+        lat = self.latency_ms()
+        return round(pos - lat) if lat is not None else pos
+
     def player_view(self) -> dict:
         s = self.status or {}
         track = s.get("track") or None
@@ -172,7 +259,10 @@ class App:
                 "artists": ", ".join(track.get("artist_names") or []),
                 "album": track.get("album_name"),
                 "image": track.get("album_cover_url"),
-                "position_ms": track.get("position"),
+                "position_ms": self.heard_position(track.get("position")),
+                "position_at": round(self.status_at * 1000) if self.status_at else None,
+                "spotify_position_ms": track.get("position"),
+                "latency_ms": round(self.latency_ms()) if self.latency_ms() is not None else None,
                 "duration_ms": track.get("duration"),
                 "format": track.get("format"),
             }
@@ -427,6 +517,8 @@ def build_app() -> web.Application:
             await flex.receiver.play(context, skip_to_uri=uri)
         else:
             await flex.receiver.play(uri)
+        if flex.sync_wake:
+            flex.sync_wake.set()
         warning = None
         try:
             if not any(o["selected"] for o in await flex.owntone.outputs()):
@@ -462,6 +554,8 @@ def build_app() -> web.Application:
             await rec.add_to_queue(str(data["uri"]))
         else:
             raise web.HTTPNotFound(text="Unbekannte Aktion")
+        if action in ("next", "prev", "seek", "resume", "playpause") and flex.sync_wake:
+            flex.sync_wake.set()
         status = await flex.refresh_status(broadcast=True)
         return ok({"player": flex.player_view(), "raw": bool(status)})
 

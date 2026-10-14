@@ -20,6 +20,9 @@ mkdir -p /music /config/owntone /config/go-librespot /data /run/dbus /run/avahi-
 rm -f /run/dbus/dbus.pid /run/dbus/pid /run/avahi-daemon/pid
 [ -p /music/spotify ] || { rm -f /music/spotify; mkfifo /music/spotify; }
 chmod 666 /music/spotify
+# metadata pipe: carries the Spotify track position to OwnTone (audible-position sync)
+[ -p /music/spotify.metadata ] || { rm -f /music/spotify.metadata; mkfifo /music/spotify.metadata; }
+chmod 666 /music/spotify.metadata
 
 # --- OwnTone: only the pipe as library, only localhost may control it --------
 cat > /config/owntone/owntone.conf <<EOF

@@ -5,6 +5,7 @@ switched via the source list (saved groups and single speakers) or turned on/off
 """
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.components.media_player import (
@@ -70,14 +71,28 @@ class FlexBase(CoordinatorEntity[FlexCoordinator], MediaPlayerEntity):
         super().__init__(coordinator)
         self._pos: int | None = None
         self._pos_at = None
+        self._raw = None
         self._remember_position()
 
     # ---- shared helpers
     def _remember_position(self) -> None:
+        """Position = what is audible (the app subtracts the measured audio delay).
+
+        It is stamped with the time the app measured it; a negative value means the
+        previous track is still audible, so playback of this one starts in the future."""
         track = self.coordinator.player.get("track") or {}
         pos = track.get("position_ms")
-        if pos != self._pos:
-            self._pos, self._pos_at = pos, dt_util.utcnow()
+        at = track.get("position_at")
+        if pos is None:
+            self._pos, self._pos_at, self._raw = None, None, None
+            return
+        if (pos, at) == self._raw:
+            return
+        self._raw = (pos, at)
+        base = dt_util.utc_from_timestamp(at / 1000) if isinstance(at, (int, float)) and at > 0 else dt_util.utcnow()
+        if pos < 0:
+            base, pos = base + timedelta(milliseconds=-pos), 0
+        self._pos, self._pos_at = pos, base
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -149,7 +164,8 @@ class FlexBase(CoordinatorEntity[FlexCoordinator], MediaPlayerEntity):
 
     @property
     def media_position(self) -> int | None:
-        return round(self._pos / 1000) if self._pos is not None else None
+        # fractions matter for synced lyrics
+        return round(self._pos / 1000, 3) if self._pos is not None else None
 
     @property
     def media_position_updated_at(self):
@@ -296,6 +312,7 @@ class FlexPlayer(FlexBase):
                 "library_connected": (d.get("web") or {}).get("connected"),
                 "sleep_timer_ends": self.coordinator.sleep_ends.isoformat() if self.coordinator.sleep_ends else None,
                 "integration": "spotify_flex_app",
+                "audio_latency_ms": (self.coordinator.player.get("track") or {}).get("latency_ms"),
                 # all speaker players + group select, so cards need no registry lookup
                 "speaker_entities": [e for e in (self._speaker_entity_id(s["id"]) for s in self.coordinator.speakers) if e],
                 "group_entity": er.async_get(self.hass).async_get_entity_id("select", DOMAIN, "group")}

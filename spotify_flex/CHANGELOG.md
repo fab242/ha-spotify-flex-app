@@ -72,3 +72,7 @@
 ## 1.5.1
 
 - Suche akzeptiert Spotify-Links/URIs („Teilen → Link kopieren“): damit lassen sich auch Spotify-eigene Playlists wie „This Is …“ abspielen, die die Web-API seit Ende 2024 nicht mehr herausgibt.
+
+## 1.5.2
+
+- Liedtext nach Liedwechsel: lrclib meldet neue Titel beim ersten Abruf oft als „nicht gefunden“ – die Kachel fragt jetzt nach 6 und 20 s erneut nach (zeigt „Liedtext wird gesucht …“) und bricht hängende Abrufe nach 15 s ab.

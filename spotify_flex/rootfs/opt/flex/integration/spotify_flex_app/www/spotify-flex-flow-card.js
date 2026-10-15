@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.5.1";
+const CARD_VERSION = "1.5.2";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -496,16 +496,22 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const bar = this._$(".lyrics-bar");
     if (bar && !bar.firstChild) bar.innerHTML = this._offsetCtl();
     if (!a.media_title) { this._s.lyrics = null; this._s.lyricsKey = null; this._paintLyrics(); return; }
-    const key = `${a.media_title}|${a.media_artist || ""}`;
+    const key = `${a.media_title}|${a.media_artist || ""}|${Math.round(a.media_duration || 0)}`;
     if (key === this._s.lyricsKey) return;
     this._s.lyricsKey = key;
     this._s.lyrics = { loading: true, lines: [], text: "" };
     this._paintLyrics();
     if (/:episode:/.test(a.media_content_id || "")) { this._s.lyrics = { lines: [], text: "" }; this._paintLyrics(); return; }
-    this._fetchLyrics(a).then((res) => {
+    const load = (attempt) => this._fetchLyrics(a).then((res) => {
       if (this._s.lyricsKey !== key) return;
+      res.searching = !res.lines.length && !res.text && attempt < 2;
       this._s.lyrics = res; this._paintLyrics();
+      // lrclib sucht unbekannte Titel beim ersten Abruf erst extern und meldet dann oft
+      // „nicht gefunden“ – beim zweiten Abruf liegt der Text vor. Darum nachfragen.
+      const wait = [6000, 20000][attempt];
+      if (!res.lines.length && !res.text && wait) setTimeout(() => { if (this._s.lyricsKey === key) load(attempt + 1); }, wait);
     });
+    load(0);
   }
 
   async _fetchLyrics(a) {
@@ -514,11 +520,13 @@ class SpotifyFlexFlowCard extends HTMLElement {
     if (a.media_album_name) params.set("album_name", a.media_album_name);
     if (a.media_duration) params.set("duration", String(Math.round(a.media_duration)));
     const get = async (url) => {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 15000); // hängende Abrufe nicht ewig warten lassen
       try {
-        const r = await fetch(url, { headers: { "Lrclib-Client": `spotify-flex-flow ${CARD_VERSION}` } });
+        const r = await fetch(url, { signal: ctl.signal, headers: { "Lrclib-Client": `spotify-flex-flow ${CARD_VERSION}` } });
         if (!r.ok) return null;
         return await r.json();
-      } catch (_) { return null; }
+      } catch (_) { return null; } finally { clearTimeout(t); }
     };
     let hit = await get(`https://lrclib.net/api/get?${params}`);
     if (!hit || (!hit.syncedLyrics && !hit.plainLyrics)) {
@@ -540,9 +548,10 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const L = this._s.lyrics;
     for (const box of this._lyricsTargets()) {
       box.dataset.cur = "";
+      if (box.dataset.key !== (this._s.lyricsKey || "")) box.scrollTop = 0;
       box.dataset.key = this._s.lyricsKey || "";
       if (!L) { box.innerHTML = `<p class="lmsg">Kein Titel aktiv.</p>`; continue; }
-      if (L.loading) { box.innerHTML = `<p class="lmsg">Liedtext wird geladen …</p>`; continue; }
+      if (L.loading || L.searching) { box.innerHTML = `<p class="lmsg">Liedtext wird ${L.searching ? "gesucht" : "geladen"} …</p>`; continue; }
       if (L.lines.length) {
         box.innerHTML = `<span class="ball" aria-hidden="true"></span>` + L.lines.map((l, i) =>
           `<div class="lyric-line" data-i="${i}">${l.words.map((w, k) => `<span class="w" data-k="${k}">${esc(w.w)}</span>`).join(" ")}</div>`).join("");
@@ -573,6 +582,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
       });
       const row = box.querySelector(`.lyric-line[data-i="${cur}"]`);
       if (row && box.clientHeight) box.scrollTo({ top: row.offsetTop - box.clientHeight / 2 + row.clientHeight / 2, behavior: force ? "auto" : "smooth" });
+      else if (cur < 0) box.scrollTo({ top: 0, behavior: force ? "auto" : "smooth" });
     }
   }
 

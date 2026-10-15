@@ -19,8 +19,9 @@
   const lrc = ["[00:00.00]Intro", "[00:05.00]Erste Zeile im Takt", "[00:10.00]Zweite Zeile, ein bisschen länger als die erste", "[00:15.00]Dritte Zeile", "[00:20.00]Refrain – alle singen mit", "[00:25.00]Noch eine Zeile", "[00:30.00]Und noch eine", "[00:35.00]Fast geschafft", "[00:40.00]Ende"].join("\n");
   const realFetch = window.fetch;
   window.fetch = async (url, opts) => {
-    if (String(url).includes("lrclib.net")) {
-      return new Response(JSON.stringify({ syncedLyrics: lrc, plainLyrics: "" }), { status: 200, headers: { "content-type": "application/json" } });
+    if (String(url).includes("lrclib.net")) { window.__lrc = (window.__lrc || 0) + 1;
+      if (window.__lrcHook && !window.__lrcHook(String(url))) return new Response("", { status: 404 });
+      return new Response(JSON.stringify({ syncedLyrics: window.__longLrc || lrc, plainLyrics: "" }), { status: 200, headers: { "content-type": "application/json" } });
     }
     return realFetch(url, opts);
   };
@@ -29,7 +30,7 @@
   const states = {
     "media_player.spotify_flex_player": { entity_id: "media_player.spotify_flex_player", state: params.get("state") || "playing", attributes: {
       friendly_name: "Spotify Flex Player", media_title: "Euphoria (Firefly)", media_artist: "Delerium", media_album_name: "Karma",
-      media_content_id: "spotify:track:T1", media_duration: 328, media_position: 21, media_position_updated_at: now,
+      media_content_id: "spotify:track:T1", media_duration: 328, media_position: Number(params.get("pos") || 21), media_position_updated_at: now,
       entity_picture: window.__covers.now, volume_level: 0.42, shuffle: true, repeat: "all", source: "Wohnzimmer",
       speakers: ["HomePod Links", "HomePod Rechts"],
       speaker_entities: ["media_player.homepod_links_spotify_flex", "media_player.homepod_rechts_spotify_flex", "media_player.badezimmer_spotify_flex", "media_player.kinderzimmer_spotify_flex"],

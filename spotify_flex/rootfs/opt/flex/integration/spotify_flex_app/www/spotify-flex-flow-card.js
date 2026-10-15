@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.5.0";
+const CARD_VERSION = "1.5.1";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -66,6 +66,16 @@ const TABS = [
   { id: "shows", label: "Podcasts", icon: "podcast", node: "shows" },
 ];
 const NODE = "flex:node:";
+
+/* Spotify-Link oder -URI (z. B. aus „Teilen → Link kopieren“) → URI.
+   Damit lassen sich auch Spotify-eigene Playlists („This Is …“, Mixe) abspielen,
+   die Spotify seit Ende 2024 über die Web-API weder in der Suche noch beim Öffnen herausgibt. */
+export function spotifyLink(text) {
+  const t = String(text || "").trim();
+  let m = t.match(/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(playlist|album|track|artist|show|episode)\/([A-Za-z0-9]{10,40})/);
+  if (!m) m = t.match(/^spotify:(playlist|album|track|artist|show|episode):([A-Za-z0-9]{10,40})$/);
+  return m ? { type: m[1], uri: `spotify:${m[1]}:${m[2]}` } : null;
+}
 
 const TS = /\[(\d+):(\d+(?:[.,]\d+)?)\]/g;
 const WTS = /<(\d+):(\d+(?:[.,]\d+)?)>/g;
@@ -921,6 +931,13 @@ class SpotifyFlexFlowCard extends HTMLElement {
     if (!q) return;
     const lib = this._s.lib;
     lib.query = q;
+    const link = spotifyLink(q);
+    if (link) {
+      lib.results = { groups: [{ type: link.type, items: [this._linkResult(link)] }] };
+      const b = this._$(".sheet .lib-body");
+      if (b) { b.innerHTML = this._searchHtml(lib.results); this._s.libItems = b.innerHTML; }
+      return;
+    }
     const body = this._$(".sheet .lib-body");
     if (body) body.innerHTML = `<p class="lmsg">Suche „${esc(q)}“ …</p>`;
     await this._once("search", async () => {
@@ -933,11 +950,19 @@ class SpotifyFlexFlowCard extends HTMLElement {
     });
   }
 
+  _linkResult(link) {
+    const names = { playlist: "Playlist", album: "Album", track: "Titel", artist: "Künstler", show: "Podcast", episode: "Folge" };
+    return { title: `${names[link.type]} aus Spotify-Link abspielen`, subtitle: link.uri, image: null, type: link.type,
+      uri: link.uri, play_id: link.uri, browse_id: null };
+  }
+
   async _runPlaylistSearch(q) {
     q = String(q || "").trim();
     if (!q) return;
     const lib = this._s.lib;
     lib.plQuery = q;
+    const link = spotifyLink(q);
+    if (link) { lib.plResults = [this._linkResult(link)]; return this._renderLibrary(); }
     await this._once("plsearch", async () => {
       const res = await this._resp("search", { query: q, types: ["playlist"] });
       lib.plResults = (res.groups || []).flatMap((g) => g.items);
@@ -948,7 +973,8 @@ class SpotifyFlexFlowCard extends HTMLElement {
   _playlistResultsHtml(items) {
     const saved = this._s.lib.saved || new Set();
     const rows = items.map((it) => this._row(it, "", saved.has(it.uri) ? "saved" : "follow")).join("");
-    return `<h4 class="grp">Öffentliche Playlists</h4>${rows || `<p class="lmsg">Keine Playlist gefunden.</p>`}`;
+    return `<h4 class="grp">Öffentliche Playlists</h4>${rows || `<p class="lmsg">Keine Playlist gefunden.</p>`}
+      <p class="hint">Spotify-eigene Playlists wie „This Is …“ oder Mixe gibt Spotify hier nicht heraus. In der Spotify-App über „Teilen → Link kopieren“ den Link holen und hier einfügen – dann lässt sie sich abspielen.</p>`;
   }
 
   _searchHtml(res) {

@@ -68,3 +68,7 @@
 
 - Player: im Reiter „Playlists“ öffentliche Playlists suchen, abspielen, öffnen und über ⋮ → „Zu meinen Playlists“ speichern.
 - Gespeicherte Titel/Playlists erscheinen sofort in der Bibliothek (Cache wird geleert).
+
+## 1.5.1
+
+- Suche akzeptiert Spotify-Links/URIs („Teilen → Link kopieren“): damit lassen sich auch Spotify-eigene Playlists wie „This Is …“ abspielen, die die Web-API seit Ende 2024 nicht mehr herausgibt.

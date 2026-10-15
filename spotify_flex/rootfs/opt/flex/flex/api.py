@@ -29,7 +29,7 @@ from urllib.parse import quote
 
 import aiohttp
 
-from .const import API_BASE, LIBRARY_URIS_MAX, PAGE_LIMIT, PLAYLIST_ITEMS_MAX, SEARCH_LIMIT_MAX
+from .const import API_BASE, ARTIST_ALBUMS_MAX, LIBRARY_URIS_MAX, PAGE_LIMIT, PLAYLIST_ITEMS_MAX, SEARCH_LIMIT_MAX
 from .normalize import normalize, normalize_device, normalize_page
 
 _LOGGER = logging.getLogger(__name__)
@@ -394,7 +394,8 @@ class SpotifyClient:
         return page
 
     async def artist_albums(self, artist_id: str, offset: int = 0) -> dict:
-        return await self.page(f"/artists/{valid_id(artist_id)}/albums", offset, PAGE_LIMIT,
+        # Feb-2026: Spotify allows at most 10 albums per request here ("Invalid limit" above)
+        return await self.page(f"/artists/{valid_id(artist_id)}/albums", offset, ARTIST_ALBUMS_MAX,
                                {"include_groups": "album,single,compilation"}, cache_ttl=600)
 
     async def show_episodes(self, show_id: str, offset: int = 0) -> dict:

@@ -71,3 +71,20 @@ def test_latency_measured_and_applied(tmp_path, monkeypatch):
     before = list(app.latency)
     asyncio.run(app.audio_sync())
     assert list(app.latency) == before
+
+
+def test_artist_albums_use_max_10():
+    from flex.api import SpotifyClient
+
+    seen = {}
+
+    class C(SpotifyClient):
+        def __init__(self):
+            pass
+
+        async def request(self, method, path, params=None, **kw):
+            seen.update(path=path, params=params)
+            return {"items": [], "total": 0, "next": None}
+
+    asyncio.run(C().artist_albums("3DtegdVfSLGImx6c8qvgsK"))
+    assert seen["path"].endswith("/albums") and seen["params"]["limit"] == 10

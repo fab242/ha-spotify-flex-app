@@ -59,3 +59,7 @@
 
 - Liedtext synchron zum hörbaren Ton: Die App meldet OwnTone über die Metadaten-Pipe die Spotify-Position und misst daraus die tatsächliche Verzögerung (Pipe, OwnTone-Puffer, AirPlay). Player-Position in Home Assistant = was gerade zu hören ist (auf Millisekunden, mit Messzeitpunkt).
 - Knopf „Takt“ entfernt; −/+ nur noch zur Feinkorrektur (0,1 s).
+
+## 1.4.1
+
+- Künstler öffnen: „Spotify: Invalid limit“ behoben – Spotify liefert dort seit Februar 2026 höchstens 10 Alben pro Abruf (weitere über „Mehr laden“).

@@ -1,6 +1,6 @@
 """Constants shared by the Spotify Flex app backend."""
 
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 
 API_BASE = "https://api.spotify.com/v1"
 AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
@@ -17,6 +17,7 @@ SCOPES = (
 
 PAGE_LIMIT = 50
 SEARCH_LIMIT_MAX = 10
+ARTIST_ALBUMS_MAX = 10
 LIBRARY_URIS_MAX = 40
 PLAYLIST_ITEMS_MAX = 100
 

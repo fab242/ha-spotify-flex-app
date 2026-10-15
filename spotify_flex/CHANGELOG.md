@@ -63,3 +63,8 @@
 ## 1.4.1
 
 - Künstler öffnen: „Spotify: Invalid limit“ behoben – Spotify liefert dort seit Februar 2026 höchstens 10 Alben pro Abruf (weitere über „Mehr laden“).
+
+## 1.5.0
+
+- Player: im Reiter „Playlists“ öffentliche Playlists suchen, abspielen, öffnen und über ⋮ → „Zu meinen Playlists“ speichern.
+- Gespeicherte Titel/Playlists erscheinen sofort in der Bibliothek (Cache wird geleert).

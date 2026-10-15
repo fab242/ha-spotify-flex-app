@@ -68,6 +68,9 @@
           items: [{ title: "Silence", subtitle: "Delerium · Sarah McLachlan", image: window.__covers.next, type: "track", uri: "spotify:track:T2", play_id: "spotify:track:T2" },
                   { title: "Innocente", subtitle: "Delerium", image: null, type: "track", uri: "spotify:track:T3", play_id: "spotify:track:T3" }] } };
         if (s === "like") return { response: { uri: "spotify:track:T1", liked: true } };
+        if (s === "search" && (msg.service_data.types || []).join() === "playlist") return { response: { groups: [{ type: "playlist", items: [
+          { title: "Dark Wave Classics", subtitle: "von Spotify", image: window.__covers.p2, type: "playlist", uri: "spotify:playlist:PUB1", browse_id: "flex:node:playlist:PUB1@0", play_id: "flex:node:playlist:PUB1@0#spotify:playlist:PUB1" },
+          { title: "Synthpop 80s", subtitle: "von Fan", image: window.__covers.p1, type: "playlist", uri: "spotify:playlist:PUB2", browse_id: "flex:node:playlist:PUB2@0", play_id: "flex:node:playlist:PUB2@0#spotify:playlist:PUB2" }] }] } };
         if (s === "search") return { response: { groups: [{ type: "track", items: [{ title: "Euphoria", subtitle: "Delerium", image: window.__covers.now, type: "track", uri: "spotify:track:T1", play_id: "spotify:track:T1" }] },
           { type: "artist", items: [{ title: "Delerium", subtitle: "", image: window.__covers.p2, type: "artist", uri: "spotify:artist:A1", browse_id: "flex:node:artist:A1@0", play_id: "flex:node:artist:A1@0#spotify:artist:A1" }] }] } };
         if (s === "sleep_timer") return { response: { ends_at: null } };

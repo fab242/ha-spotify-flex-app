@@ -460,6 +460,7 @@ def build_app() -> web.Application:
             await flex.api.library_remove(uris)
         else:
             raise ValueError("action muss save, remove oder contains sein")
+        flex.api.clear_cache()  # gespeicherte Playlists/Titel sofort in der Bibliothek zeigen
         return ok()
 
     @r.post("/api/playlists")

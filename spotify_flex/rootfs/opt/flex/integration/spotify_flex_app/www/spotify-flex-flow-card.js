@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.4.0";
+const CARD_VERSION = "1.5.0";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -327,6 +327,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
     root.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape" && this._s.sheet) this._closeSheet();
       if (ev.key === "Enter" && ev.target.matches?.(".search-in")) this._runSearch(ev.target.value);
+      if (ev.key === "Enter" && ev.target.matches?.(".pl-search-in")) this._runPlaylistSearch(ev.target.value);
     });
     const groove = this._$(".groove");
     groove.addEventListener("pointerdown", (ev) => this._seekStart(ev));
@@ -683,6 +684,16 @@ class SpotifyFlexFlowCard extends HTMLElement {
         this._closeMenu(); this._toast("Zur Warteschlange hinzugefügt");
       });
       case "do-search": return this._runSearch(this._$(".search-in")?.value || "");
+      case "pl-search": return this._runPlaylistSearch(this._$(".pl-search-in")?.value || "");
+      case "pl-clear": this._s.lib.plResults = null; this._s.lib.plQuery = ""; return this._renderLibrary();
+      case "pl-follow": return this._once("plf", async () => {
+        const r = await this._resp("like", { action: "save", uri: btn.dataset.uri });
+        if (!r.liked) throw new Error("Spotify hat die Playlist nicht gespeichert.");
+        (this._s.lib.saved ||= new Set()).add(btn.dataset.uri);
+        this._closeMenu();
+        this._toast(`„${btn.dataset.title}“ ist jetzt in deinen Playlists`);
+        this._renderLibrary();
+      });
       // speakers sheet
       case "spk": return this._once("spk" + btn.dataset.id, async () => {
         const st = this._hass.states[btn.dataset.id];
@@ -866,6 +877,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
         <span class="sh-title">${svg(top ? "playlist" : tab.icon)}<span>${esc(title)}</span></span>
         <button class="nb sm" data-a="view" aria-label="Ansicht wechseln">${svg(lib.view === "grid" ? "list" : "grid")}</button>
         <button class="nb sm" data-a="close" aria-label="Schließen">${svg("close")}</button></div>
+      ${tab.id === "playlists" && !top ? `<div class="search"><input class="pl-search-in search-in-pl" type="search" placeholder="Öffentliche Playlists suchen …" value="${esc(lib.plQuery || "")}" aria-label="Öffentliche Playlists suchen"><button class="nb sm" data-a="pl-search" aria-label="Playlists suchen">${svg("search")}</button>${lib.plResults ? `<button class="nb sm" data-a="pl-clear" aria-label="Suche schließen">${svg("close")}</button>` : ""}</div>` : ""}
       ${tab.id === "search" && !top ? `<div class="search"><input class="search-in" type="search" placeholder="Titel, Künstler, Alben, Playlists …" value="${esc(lib.query)}" aria-label="Suchbegriff"><button class="nb sm" data-a="do-search" aria-label="Suchen">${svg("search")}</button></div>` : ""}`;
     const body = sheet.querySelector(".lib-body");
     body.className = `lib-body ${lib.view}`;
@@ -895,7 +907,8 @@ class SpotifyFlexFlowCard extends HTMLElement {
         body.querySelector(".more-btn")?.remove();
         body.insertAdjacentHTML("beforeend", html + moreBtn);
       } else {
-        body.innerHTML = (head + html + moreBtn) || `<p class="lmsg">Hier ist nichts.</p>`;
+        const found = tab.id === "playlists" && !top && lib.plResults ? this._playlistResultsHtml(lib.plResults) : "";
+        body.innerHTML = (found + (found ? `<h4 class="grp">Meine Playlists</h4>` : "") + head + html + moreBtn) || `<p class="lmsg">Hier ist nichts.</p>`;
       }
       this._s.libItems = body.innerHTML;
     } catch (err) {
@@ -920,6 +933,24 @@ class SpotifyFlexFlowCard extends HTMLElement {
     });
   }
 
+  async _runPlaylistSearch(q) {
+    q = String(q || "").trim();
+    if (!q) return;
+    const lib = this._s.lib;
+    lib.plQuery = q;
+    await this._once("plsearch", async () => {
+      const res = await this._resp("search", { query: q, types: ["playlist"] });
+      lib.plResults = (res.groups || []).flatMap((g) => g.items);
+      if (this._s.sheet === "library" && lib.tab === "playlists") await this._renderLibrary();
+    });
+  }
+
+  _playlistResultsHtml(items) {
+    const saved = this._s.lib.saved || new Set();
+    const rows = items.map((it) => this._row(it, "", saved.has(it.uri) ? "saved" : "follow")).join("");
+    return `<h4 class="grp">Öffentliche Playlists</h4>${rows || `<p class="lmsg">Keine Playlist gefunden.</p>`}`;
+  }
+
   _searchHtml(res) {
     const names = { track: "Titel", artist: "Künstler", album: "Alben", playlist: "Playlists", show: "Podcasts", episode: "Folgen", audiobook: "Hörbücher" };
     const groups = res?.groups || [];
@@ -927,18 +958,19 @@ class SpotifyFlexFlowCard extends HTMLElement {
     return groups.map((g) => `<h4 class="grp">${esc(names[g.type] || g.type)}</h4>${g.items.map((it) => this._row(it)).join("")}`).join("");
   }
 
-  _row(it, extra = "") {
+  _row(it, extra = "", follow = "") {
     const icon = { track: "note", episode: "podcast", album: "album", artist: "artist", playlist: "playlist", show: "podcast", podcast: "podcast", directory: "playlist" }[it.type] || "note";
     const open = it.browse_id ? `data-a="open" data-id="${esc(it.browse_id + (it.play_id && it.play_id.includes("#") ? "#" + it.play_id.split("#")[1] : ""))}" data-title="${esc(it.title)}"`
       : it.play_id ? `data-a="play" data-id="${esc(it.play_id)}" data-title="${esc(it.title)}"` : "";
     const canQueue = it.uri && /^spotify:(track|episode):/.test(it.uri);
     const menu = (it.play_id || canQueue) && extra !== "current"
-      ? `<button class="nb xs dots" data-a="item-menu" data-id="${esc(it.play_id || "")}" data-uri="${esc(canQueue ? it.uri : "")}" data-title="${esc(it.title)}" aria-label="Mehr zu ${esc(it.title)}">${svg("dots")}</button>` : "";
+      ? `<button class="nb xs dots" data-a="item-menu" data-id="${esc(it.play_id || "")}" data-uri="${esc(canQueue ? it.uri : "")}" data-pl="${esc(follow === "follow" && it.uri ? it.uri : "")}" data-title="${esc(it.title)}" aria-label="Mehr zu ${esc(it.title)}">${svg("dots")}</button>` : "";
+    const badge = follow === "saved" ? `<span class="saved-badge" title="In deinen Playlists">${svg("heart")}</span>` : "";
     return `<div class="item ${extra}">
       <button class="item-main" ${open}>
         <span class="thumb ${it.type === "artist" ? "round" : ""}">${it.image ? `<img loading="lazy" alt="" src="${esc(it.image)}">` : svg(icon)}</span>
         <span class="item-txt"><span class="item-t">${esc(it.title)}</span>${it.subtitle ? `<span class="item-s">${esc(it.subtitle)}</span>` : ""}</span>
-      </button>${menu}</div>`;
+      </button>${badge}${menu}</div>`;
   }
 
   _itemMenu(btn) {
@@ -946,7 +978,8 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const m = document.createElement("div");
     m.className = "menu";
     m.innerHTML = `${btn.dataset.id ? `<button data-a="play" data-id="${esc(btn.dataset.id)}" data-title="${esc(btn.dataset.title)}">${svg("play")}<span>Abspielen</span></button>` : ""}
-      ${btn.dataset.uri ? `<button data-a="enqueue" data-uri="${esc(btn.dataset.uri)}">${svg("queueAdd")}<span>Zur Warteschlange</span></button>` : ""}`;
+      ${btn.dataset.uri ? `<button data-a="enqueue" data-uri="${esc(btn.dataset.uri)}">${svg("queueAdd")}<span>Zur Warteschlange</span></button>` : ""}
+      ${btn.dataset.pl ? `<button data-a="pl-follow" data-uri="${esc(btn.dataset.pl)}" data-title="${esc(btn.dataset.title)}">${svg("heartO")}<span>Zu meinen Playlists</span></button>` : ""}`;
     const item = btn.closest(".item");
     item.append(m);
     this._menuEl = m;
@@ -1128,7 +1161,10 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
 .sheet:not(.wide-tabs) .tab span { display:inline; }
 .surface.narrow .tab span { display:none; }
 .search { display:flex; gap:10px; margin:0 0 10px; }
-.search-in { flex:1; min-width:0; padding:11px 16px; border:0; border-radius:999px; background:var(--bg); box-shadow:var(--inset); font:inherit; color:var(--ink); outline:none; }
+.saved-badge { display:inline-flex; color:var(--acc); padding:0 6px; }
+.saved-badge svg { width:18px; height:18px; }
+.lib-body.grid .saved-badge { position:absolute; top:14px; left:14px; background:rgba(244,248,252,.92); border-radius:50%; padding:4px; }
+.pl-search-in, .search-in { flex:1; min-width:0; padding:11px 16px; border:0; border-radius:999px; background:var(--bg); box-shadow:var(--inset); font:inherit; color:var(--ink); outline:none; }
 .grp { margin:14px 4px 6px; font-size:.78rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
 .item { position:relative; display:flex; align-items:center; gap:8px; border-radius:16px; }
 .item-main { flex:1; min-width:0; display:flex; align-items:center; gap:12px; padding:7px 8px; border-radius:14px; text-align:left; }

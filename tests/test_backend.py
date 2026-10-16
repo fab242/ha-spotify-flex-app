@@ -9,7 +9,7 @@ import pytest
 from aiohttp import web
 
 
-from flex import const, groups, hassbridge, oauth, server  # noqa: E402
+from flex import const, groups, hassbridge, oauth, server, speakercfg  # noqa: E402
 
 CALLS = []
 STATE = {"outputs": [{"id": "111", "name": "HomePod Links", "type": "AirPlay", "selected": False, "volume": 40,
@@ -87,6 +87,7 @@ def test_backend_flow(tmp_path, monkeypatch):
         monkeypatch.setattr(server, "OPTIONS_FILE", str(tmp_path / "opt.json"))
         monkeypatch.setattr(groups, "GROUPS_FILE", str(tmp_path / "groups.json"))
         monkeypatch.setattr(hassbridge, "API_TOKEN_FILE", str(tmp_path / "api_token"))
+        monkeypatch.setattr(speakercfg, "SPEAKERS_FILE", str(tmp_path / "speakers.json"))
         (tmp_path / "opt.json").write_text(json.dumps({"client_id": "abc123", "device_name": "Home Flex",
                                                        "ha_integration": False}))
         runners = []
@@ -134,6 +135,31 @@ def test_backend_flow(tmp_path, monkeypatch):
                     assert (await r.json())["groups"][0]["name"] == "Bad"
                 async with s.delete(base + f"api/groups/{gid}") as r:
                     assert (await r.json())["groups"] == []
+                # speaker settings: rename, cap volume, start volume, hide
+                async with s.put(base + "api/config/speakers/111",
+                                 json={"alias": "Wohnzimmer links", "max_volume": 60, "start_volume": 70}) as r:
+                    res = await r.json()
+                cfg = next(x for x in res["all"] if x["id"] == "111")
+                assert cfg["name"] == "Wohnzimmer links" and cfg["device_name"] == "HomePod Links"
+                assert cfg["max_volume"] == 60 and cfg["start_volume"] == 60  # start never above max
+                async with s.post(base + "api/speakers/111", json={"volume": 95}) as r:
+                    assert r.status == 200
+                assert next(o for o in STATE["outputs"] if o["id"] == "111")["volume"] == 60
+                async with s.post(base + "api/speakers", json={"speakers": []}) as r:
+                    pass
+                async with s.post(base + "api/speakers", json={"speakers": ["111"]}) as r:
+                    pass
+                assert next(o for o in STATE["outputs"] if o["id"] == "111")["volume"] == 60
+                async with s.put(base + "api/config/speakers/222", json={"hidden": True}) as r:
+                    assert r.status == 200
+                async with s.get(base + "api/state") as r:
+                    assert [o["name"] for o in (await r.json())["speakers"]] == ["Wohnzimmer links"]
+                async with s.get(base + "api/config/speakers") as r:
+                    assert {o["id"] for o in (await r.json())["speakers"]} == {"111", "222"}
+                async with s.put(base + "api/config/speakers/999", json={"hidden": True}) as r:
+                    assert r.status == 404
+                async with s.put(base + "api/config/speakers/222", json={"hidden": False}) as r:
+                    assert r.status == 200
                 async with s.get(base + "api/ha/token") as r:
                     assert r.status == 403  # token only visible through ingress
                 async with s.post(base + "api/speakers", json={"speakers": []}) as r:

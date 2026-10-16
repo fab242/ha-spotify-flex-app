@@ -3,42 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Spotify Flex</title>
+<title>Spotify Flex – Einstellungen</title>
 <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
 <div id="app" class="app">
   <header class="top">
-    <div class="brand"><span class="logo" aria-hidden="true"></span><span>Spotify Flex</span></div>
-    <div class="pills">
-      <span class="pill" id="pill-receiver" title="Spotify-Empfänger">Empfänger</span>
-      <span class="pill" id="pill-web" title="Spotify-Bibliothek">Bibliothek</span>
+    <div class="title">
+      <h1>Spotify Flex</h1>
+      <span class="sub" id="version">Einstellungen</span>
     </div>
-    <button class="icon-btn" id="btn-settings" aria-label="Einstellungen">
-      <svg viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7zm7.4-2.5.1-1-.1-1 2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L15 3h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11l-.1 1 .1 1-2 1.6 2 3.4 2.4-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.4 1 2-3.4z"/></svg>
-    </button>
+    <div class="chips" id="chips"></div>
   </header>
 
-  <section id="setup" class="panel setup" hidden></section>
+  <nav class="tabs" id="tabs" role="tablist">
+    <button role="tab" data-tab="accounts">Konten</button>
+    <button role="tab" data-tab="speakers">Lautsprecher</button>
+    <button role="tab" data-tab="groups">Gruppen</button>
+    <button role="tab" data-tab="system">System</button>
+  </nav>
 
-  <main class="grid">
-    <div class="col left">
-      <section class="panel now" id="now"></section>
-      <section class="panel speakers" id="speakers"></section>
-    </div>
-    <div class="col right">
-      <section class="panel library">
-        <nav class="tabs" id="tabs" role="tablist"></nav>
-        <form class="search" id="search">
-          <input type="search" id="search-q" placeholder="Titel, Künstler, Alben, Playlists suchen" aria-label="Suchen">
-          <button class="icon-btn" type="submit" aria-label="Suchen"><svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 0 3.7 10.7l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8z"/></svg></button>
-        </form>
-        <div id="browser"></div>
-      </section>
-    </div>
-  </main>
-
-  <div id="sheet" class="sheet" hidden><div class="sheet-card" role="dialog" aria-modal="true"></div></div>
+  <main id="view" class="view" aria-live="polite"></main>
   <div id="toast" class="toast" role="status" hidden></div>
 </div>
 <script src="static/app.js"></script>

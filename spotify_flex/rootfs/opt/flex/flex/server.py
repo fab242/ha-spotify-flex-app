@@ -21,6 +21,7 @@ from .const import INGRESS_PORT, LIBRESPOT_STATE, OPTIONS_FILE, REDIRECT_URI, VE
 from .oauth import WebAuth
 from . import hassbridge, netheal
 from .groups import GroupStore
+from .speakercfg import SpeakerConfig
 from .receiver import Librespot, MetaPipe, OwnTone
 
 logging.basicConfig(level=logging.INFO, format="[spotify-flex] %(levelname)s %(message)s")
@@ -62,6 +63,7 @@ class App:
         self.tasks: list[asyncio.Task] = []
         self.auth_pending: dict | None = None  # device-code login in progress
         self.groups = GroupStore()
+        self.speaker_cfg = SpeakerConfig()
         self.token = hassbridge.api_token()
         self.integration = "unknown"
         # audible position: Spotify position minus the measured audio delay (pipe + OwnTone + AirPlay)
@@ -217,6 +219,22 @@ class App:
                 except OSError:
                     pass
 
+    async def speakers(self, include_hidden: bool = False) -> list[dict]:
+        """OwnTone outputs with the user's names and settings (hidden ones left out)."""
+        return self.speaker_cfg.apply(await self.owntone.outputs(), include_hidden)
+
+    async def select_outputs(self, ids: list[str]) -> None:
+        """Select exactly these outputs; newly switched-on ones get their start volume."""
+        before = {s["id"] for s in await self.owntone.outputs() if s["selected"]}
+        await self.owntone.set_outputs(ids)
+        for oid in ids:
+            start = self.speaker_cfg.get(oid)["start_volume"]
+            if oid not in before and start is not None:
+                try:
+                    await self.owntone.set_output(oid, volume=start)
+                except SpotifyError:
+                    pass
+
     def latency_ms(self) -> float | None:
         return statistics.median(self.latency) if self.latency else None
 
@@ -296,7 +314,7 @@ class App:
                 pass
         speakers, speaker_error = [], None
         try:
-            speakers = await self.owntone.outputs()
+            speakers = await self.speakers()
         except SpotifyError as err:
             speaker_error = str(err)
         groups = self.groups.all()
@@ -522,7 +540,7 @@ def build_app() -> web.Application:
             flex.sync_wake.set()
         warning = None
         try:
-            if not any(o["selected"] for o in await flex.owntone.outputs()):
+            if not any(o["selected"] for o in await flex.speakers()):
                 warning = "Es ist kein Lautsprecher ausgewählt – bitte unter „Lautsprecher“ einen aktivieren."
         except SpotifyError:
             warning = "Lautsprecher-Dienst (OwnTone) antwortet gerade nicht."
@@ -563,18 +581,21 @@ def build_app() -> web.Application:
     # ---- speakers (OwnTone outputs)
     @r.get("/api/speakers")
     async def api_speakers(_request):
-        return ok({"speakers": await flex.owntone.outputs()})
+        return ok({"speakers": await flex.speakers()})
 
     @r.post("/api/speakers/{oid}")
     async def api_speaker_set(request):
         data = await body(request)
+        oid = request.match_info["oid"]
+        volume = flex.speaker_cfg.clamp(oid, data.get("volume"))
+        if data.get("selected") and volume is None:
+            volume = flex.speaker_cfg.get(oid)["start_volume"]
         try:
-            await flex.owntone.set_output(request.match_info["oid"], selected=data.get("selected"),
-                                          volume=data.get("volume"), pin=data.get("pin"))
+            await flex.owntone.set_output(oid, selected=data.get("selected"), volume=volume, pin=data.get("pin"))
         except SpotifyError as err:
             if err.status == 400 and data.get("selected"):
                 oid = request.match_info["oid"]
-                spk = next((s for s in await flex.owntone.outputs() if s["id"] == oid), None)
+                spk = next((s for s in await flex.speakers(True) if s["id"] == oid), None)
                 if spk and spk["needs_pin"] and not data.get("pin"):
                     raise SpotifyError(f"{spk['name']} zeigt jetzt eine PIN an – bitte erneut einschalten "
                                        "und die PIN eingeben.", 409) from err
@@ -586,7 +607,7 @@ def build_app() -> web.Application:
         return ok(await speakers_changed())
 
     async def speakers_changed() -> dict:
-        speakers = await flex.owntone.outputs()
+        speakers = await flex.speakers()
         groups = flex.groups.all()
         data = {"speakers": speakers, "groups": groups, "active_group": GroupStore.active(groups, speakers)}
         await flex.broadcast({"type": "speakers", "data": data})
@@ -596,13 +617,46 @@ def build_app() -> web.Application:
     async def api_speakers_set(request):
         """Select exactly the given speakers ({"speakers": [ids]}), others are switched off."""
         data = await body(request)
-        await flex.owntone.set_outputs([str(i) for i in data.get("speakers") or []])
+        await flex.select_outputs([str(i) for i in data.get("speakers") or []])
         return ok(await speakers_changed())
+
+    # ---- speaker settings (configuration page)
+    @r.get("/api/config/speakers")
+    async def api_cfg_speakers(_request):
+        return ok({"speakers": await flex.speakers(True), "groups": flex.groups.all()})
+
+    @r.put("/api/config/speakers/{oid}")
+    async def api_cfg_speaker_set(request):
+        data = await body(request)
+        oid = request.match_info["oid"]
+        if oid not in {s["id"] for s in await flex.owntone.outputs()}:
+            raise SpotifyError("Lautsprecher nicht gefunden.", 404)
+        flex.speaker_cfg.set(oid, data)
+        result = await speakers_changed()
+        return ok(dict(result, all=await flex.speakers(True)))
+
+    @r.post("/api/config/speakers/{oid}/pair")
+    async def api_cfg_speaker_pair(request):
+        """Pair a device that asks for a PIN (e.g. Apple TV). Without pin: make it show one."""
+        data = await body(request)
+        oid = request.match_info["oid"]
+        before = next((s for s in await flex.owntone.outputs() if s["id"] == oid), None)
+        if not before:
+            raise SpotifyError("Lautsprecher nicht gefunden.", 404)
+        try:
+            await flex.owntone.set_output(oid, selected=True, pin=str(data["pin"]) if data.get("pin") else None)
+        except SpotifyError as err:
+            if not data.get("pin"):
+                return ok({"pin_shown": True})
+            raise SpotifyError("Die PIN wurde nicht angenommen – bitte neu anfordern und erneut eingeben.", 409) from err
+        if not before["selected"]:
+            await flex.owntone.set_output(oid, selected=False)
+        return ok({"paired": True, "all": await flex.speakers(True)})
 
     # ---- saved speaker groups
     @r.get("/api/groups")
     async def api_groups(_request):
-        speakers = await flex.owntone.outputs()
+        speakers = await flex.speakers()
         groups = flex.groups.all()
         return ok({"groups": groups, "active_group": GroupStore.active(groups, speakers)})
 
@@ -627,11 +681,11 @@ def build_app() -> web.Application:
     @r.post("/api/groups/{gid}/activate")
     async def api_group_activate(request):
         group = flex.groups.get(request.match_info["gid"])
-        known = {s["id"] for s in await flex.owntone.outputs()}
+        known = {s["id"] for s in await flex.speakers(True)}
         ids = [i for i in group["speakers"] if i in known]
         if not ids:
             raise SpotifyError(f"Kein Lautsprecher der Gruppe „{group['name']}“ ist gerade erreichbar.", 409)
-        await flex.owntone.set_outputs(ids)
+        await flex.select_outputs(ids)
         result = await speakers_changed()
         missing = len(group["speakers"]) - len(ids)
         if missing:

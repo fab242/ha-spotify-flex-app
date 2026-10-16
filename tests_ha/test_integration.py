@@ -294,3 +294,16 @@ async def test_audible_position_uses_app_timestamp(hass: HomeAssistant, fake: Fa
     st = hass.states.get("media_player.spotify_flex_player")
     assert st.attributes["media_position"] == 0
     assert abs(st.attributes["media_position_updated_at"].timestamp() * 1000 - (at + 3000)) < 5
+
+
+async def test_speaker_rename_updates_device(hass: HomeAssistant, fake: FakeApp) -> None:
+    from homeassistant.helpers import device_registry as dr
+
+    await _setup_via_discovery(hass)
+    coordinator = hass.config_entries.async_entries(DOMAIN)[0].runtime_data
+    new = copy.deepcopy(coordinator.data)
+    new["speakers"][0]["name"] = "Bad unten"
+    coordinator.async_set_updated_data(new)
+    await hass.async_block_till_done()
+    dev = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, "speaker_111")})
+    assert dev.name == "Bad unten"

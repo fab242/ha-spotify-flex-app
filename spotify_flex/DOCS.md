@@ -15,9 +15,16 @@ Eigenständiger Spotify-Player für Home Assistant – ohne Handy, ohne Music As
    * **Bibliothek verbinden:** Mit Spotify anmelden, die Adresse der danach nicht ladenden Seite (`http://127.0.0.1:8765/callback?code=…`) kopieren und einfügen. Einmalig.
    * **Lautsprecher einschalten.**
 
-## Gruppen
+## Einstellungsseite
 
-Mehrere Lautsprecher einschalten und unter *Lautsprecher* auf **„+ Auswahl als Gruppe“** tippen. Eine Gruppe schaltet mit einem Tipp genau ihre Lautsprecher ein und alle anderen aus. Über das ⋮ an der Gruppe lässt sie sich umbenennen, mit der aktuellen Auswahl aktualisieren oder löschen.
+Die Seite der App (Seitenleiste „Spotify Flex“) enthält nur Einstellungen und übernimmt das aktive Home-Assistant-Design:
+
+* **Konten:** Spotify-Empfänger und Bibliothek anmelden oder trennen.
+* **Lautsprecher:** Anzeigename, Lautstärke beim Einschalten, maximale Lautstärke, ausblenden; Geräte mit PIN (z. B. Apple TV) koppeln.
+* **Gruppen:** beliebig viele Gruppen anlegen, umbenennen, Mitglieder ändern, löschen. Eine Gruppe schaltet genau ihre Lautsprecher ein und alle anderen aus.
+* **System:** Status der Home-Assistant-Integration, gemessene Audio-Verzögerung, API-Token, Netzwerkbericht.
+
+Abgespielt wird über die Player-Kachel bzw. die Home-Assistant-Entitäten.
 
 ## Home Assistant (Kacheln, Automationen)
 

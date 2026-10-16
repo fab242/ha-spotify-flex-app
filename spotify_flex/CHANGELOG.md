@@ -76,3 +76,10 @@
 ## 1.5.2
 
 - Liedtext nach Liedwechsel: lrclib meldet neue Titel beim ersten Abruf oft als „nicht gefunden“ – die Kachel fragt jetzt nach 6 und 20 s erneut nach (zeigt „Liedtext wird gesucht …“) und bricht hängende Abrufe nach 15 s ab.
+
+## 1.6.0
+
+- App-Seite ist jetzt eine reine Einstellungsseite im Design des aktiven Home-Assistant-Themes (hell/dunkel, Farben, Karten): Konten, Lautsprecher, Gruppen, System. Player und Bibliothek gibt es nur noch in der Kachel.
+- Lautsprecher konfigurieren: Anzeigename, Lautstärke beim Einschalten, maximale Lautstärke, ausblenden, Koppeln per PIN (z. B. Apple TV).
+- Gruppen anlegen, umbenennen, Mitglieder ändern, löschen (beliebig viele).
+- Integration: Namensänderungen benennen auch das Gerät in Home Assistant um.

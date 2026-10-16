@@ -14,7 +14,7 @@ from homeassistant.components.media_player import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -358,6 +358,17 @@ class FlexSpeaker(FlexBase):
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, f"speaker_{sid}")}, name=name,
                                             manufacturer="AirPlay", model="AirPlay-Lautsprecher",
                                             via_device=(DOMAIN, "app"))
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        # name set in the app (Einstellungen → Lautsprecher) → rename the HA device too
+        spk = self._spk
+        if spk and self.hass:
+            reg = dr.async_get(self.hass)
+            dev = reg.async_get_device(identifiers={(DOMAIN, f"speaker_{self._sid}")})
+            if dev and dev.name != spk["name"]:
+                reg.async_update_device(dev.id, name=spk["name"])
+        super()._handle_coordinator_update()
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

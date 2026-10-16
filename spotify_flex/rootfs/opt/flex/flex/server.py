@@ -22,6 +22,7 @@ from .oauth import WebAuth
 from . import appopts, hassbridge, netheal
 from .groups import GroupStore
 from .speakercfg import SpeakerConfig
+from .eq import Equalizer, EqError
 from .receiver import Librespot, MetaPipe, OwnTone
 
 logging.basicConfig(level=logging.INFO, format="[spotify-flex] %(levelname)s %(message)s")
@@ -64,6 +65,7 @@ class App:
         self.auth_pending: dict | None = None  # device-code login in progress
         self.groups = GroupStore()
         self.speaker_cfg = SpeakerConfig()
+        self.eq = Equalizer()
         self.token = hassbridge.api_token()
         self.integration = "unknown"
         # audible position: Spotify position minus the measured audio delay (pipe + OwnTone + AirPlay)
@@ -644,6 +646,19 @@ def build_app() -> web.Application:
         flex.speaker_cfg.set(oid, data)
         result = await speakers_changed()
         return ok(dict(result, all=await flex.speakers(True)))
+
+    # ---- equalizer (applied live by flex-eq)
+    @r.get("/api/config/eq")
+    async def api_cfg_eq(_request):
+        return ok(flex.eq.view())
+
+    @r.put("/api/config/eq")
+    async def api_cfg_eq_set(request):
+        data = await body(request)
+        try:
+            return ok(flex.eq.update(data))
+        except EqError as err:
+            raise SpotifyError(str(err), 400) from err
 
     # ---- receiver settings (device name, quality, normalisation)
     @r.get("/api/config/app")

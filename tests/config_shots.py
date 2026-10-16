@@ -9,6 +9,9 @@ import sys
 from pathlib import Path
 
 from aiohttp import web
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "spotify_flex/rootfs/opt/flex"))
+from flex.eq import Equalizer  # noqa: E402
 from playwright.async_api import async_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -81,6 +84,19 @@ def app() -> web.Application:
         APP.update(await r.json())
         return web.json_response({"settings": APP, "restarted": True})
 
+    eq = Equalizer(str(OUT / "eq.json"), str(OUT / "eq.conf"))
+    for f in ("eq.json", "eq.conf"):
+        (OUT / f).unlink(missing_ok=True)
+    eq.__init__(str(OUT / "eq.json"), str(OUT / "eq.conf"))
+
+    async def eq_get(_r):
+        return web.json_response(eq.view())
+
+    async def eq_put(r):
+        return web.json_response(eq.update(await r.json()))
+
+    a["eq"] = eq
+
     async def grp_create(r):
         data = await r.json()
         DB["groups"].append({"id": "fedcba654321", **data})
@@ -94,13 +110,16 @@ def app() -> web.Application:
     a.router.add_put("/ingress/api/config/speakers/{oid}", cfg_put)
     a.router.add_post("/ingress/api/groups", grp_create)
     a.router.add_get("/ingress/api/config/app", app_get)
+    a.router.add_get("/ingress/api/config/eq", eq_get)
+    a.router.add_put("/ingress/api/config/eq", eq_put)
     a.router.add_put("/ingress/api/config/app", app_put)
     return a
 
 
 async def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    runner = web.AppRunner(app())
+    application = app()
+    runner = web.AppRunner(application)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", 0)
     await site.start()
@@ -131,6 +150,20 @@ async def main() -> None:
             await f.locator('[data-act="g-save"]').click()
             await p.wait_for_timeout(300)
             await p.screenshot(path=str(OUT / f"cfg_{tag}_groups.png"))
+            await f.locator('#tabs button[data-tab="eq"]').click()
+            await f.locator("#eq-svg").wait_for()
+            await p.screenshot(path=str(OUT / f"cfg_{tag}_eq_off.png"))
+            await f.locator('[data-act="eq-preset"][data-id="rock"]').click()
+            await p.wait_for_timeout(300)
+            box = await f.locator('.eq-dot[data-band="3"] .eq-knob').bounding_box()
+            await p.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            await p.mouse.down()
+            await p.mouse.move(box["x"] + box["width"] / 2, box["y"] - 60, steps=8)
+            await p.screenshot(path=str(OUT / f"cfg_{tag}_eq_drag.png"))
+            await p.mouse.up()
+            await p.wait_for_timeout(400)
+            await p.screenshot(path=str(OUT / f"cfg_{tag}_eq.png"))
+            print(tag, "eq:", application["eq"].data, (OUT / "eq.conf").read_text().strip())
             await f.locator('#tabs button[data-tab="system"]').click()
             await f.locator("#receiver-cfg").wait_for()
             await p.screenshot(path=str(OUT / f"cfg_{tag}_system.png"))

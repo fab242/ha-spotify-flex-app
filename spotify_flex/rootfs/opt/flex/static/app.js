@@ -12,7 +12,7 @@ const ICON = {
 };
 const svg = (n) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICON[n]}"/></svg>`;
 
-const S = { tab: "accounts", state: null, speakers: [], groups: [], editGroup: null, busy: new Set(), openSpk: null, app: null };
+const S = { tab: "accounts", state: null, speakers: [], groups: [], editGroup: null, busy: new Set(), openSpk: null, app: null, eq: null, eqDrag: null };
 
 /* ------------------------------------------------------------ HA-Design übernehmen */
 const THEME_VARS = [
@@ -117,13 +117,18 @@ async function loadSpeakers() {
   } catch (err) { S.speakerError = err.message; }
 }
 
+async function loadEq() {
+  if (S.eqDrag !== null) return;
+  try { S.eq = await api("api/config/eq"); } catch (_) { /* ältere App oder offline */ }
+}
+
 async function loadApp() {
   try { S.app = await api("api/config/app"); } catch (_) { /* ältere App oder offline */ }
 }
 
 async function refresh(force = false) {
-  await Promise.all([loadState(), loadSpeakers(), loadApp()]);
-  if (force || !typing()) render();
+  await Promise.all([loadState(), loadSpeakers(), loadApp(), loadEq()]);
+  if (force || (!typing() && S.eqDrag === null)) render();
 }
 
 /* ------------------------------------------------------------ Kopf */
@@ -143,8 +148,9 @@ function render() {
   document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === S.tab)));
   const view = $("#view");
   if (!S.state) { view.innerHTML = `<section class="card"><h2>Spotify Flex startet …</h2><p class="desc">Die Dienste der App starten gerade. Diese Seite aktualisiert sich selbst.</p></section>`; return; }
-  if (!["accounts", "speakers", "system"].includes(S.tab)) S.tab = "speakers"; // früherer Reiter „Gruppen“
-  view.innerHTML = { accounts: viewAccounts, speakers: () => viewSpeakers() + viewGroups(), system: viewSystem }[S.tab]();
+  if (!["accounts", "speakers", "eq", "system"].includes(S.tab)) S.tab = "speakers"; // früherer Reiter „Gruppen“
+  view.innerHTML = { accounts: viewAccounts, speakers: () => viewSpeakers() + viewGroups(), eq: viewEq, system: viewSystem }[S.tab]();
+  if (S.tab === "eq" && S.eq) eqRedraw();  // jetzt mit der echten Breite zeichnen
 }
 
 function viewAccounts() {
@@ -231,6 +237,145 @@ function viewGroups() {
     ${S.editGroup === "new" ? editor(null) : `<div class="btn-row"><button class="btn primary" data-act="g-new" ${S.speakers.length ? "" : "disabled"}>Neue Gruppe</button></div>`}
   </section>`;
 }
+
+/* ------------------------------------------------------------ Equalizer */
+const EQ = { w: 600, h: 230, left: 34, right: 26, top: 26, bottom: 46 };
+const eqX = (i, n) => EQ.left + (i * (EQ.w - EQ.left - EQ.right)) / (n - 1);
+const eqY = (g, max) => EQ.top + ((max - g) * (EQ.h - EQ.top - EQ.bottom)) / (2 * max);
+const fmtHz = (f) => (f >= 1000 ? `${String(f / 1000).replace(".", ",")} kHz` : `${f} Hz`);
+const fmtDb = (g) => `${g > 0 ? "+" : ""}${String(g).replace(".", ",")} dB`;
+
+function eqPath(pts) {  /* Catmull-Rom -> Bézier: weiche Kurve wie in der Spotify-App */
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0]},${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+
+function eqSvg() {
+  /* 1:1 in Pixeln zeichnen (keine verzerrten Punkte/Schrift) */
+  const wrap = $("#eq-wrap"), view = $("#view");
+  EQ.w = Math.max(300, Math.round(wrap ? wrap.clientWidth : (view ? view.clientWidth - 34 : 600)));
+  const e = S.eq, n = e.bands.length, max = e.max;
+  const pts = e.gains.map((g, i) => [eqX(i, n), eqY(g, max)]);
+  const curve = eqPath(pts);
+  const base = EQ.h - EQ.bottom;
+  const grid = [max, max / 2, 0, -max / 2, -max].map((g) => `<line class="eq-grid${g === 0 ? " zero" : ""}" x1="${EQ.left}" x2="${EQ.w - EQ.right}" y1="${eqY(g, max)}" y2="${eqY(g, max)}"/>`).join("");
+  const labels = `<text class="eq-db" x="4" y="${eqY(max, max) + 4}">+${max}</text><text class="eq-db" x="4" y="${eqY(0, max) + 4}">0</text><text class="eq-db" x="4" y="${eqY(-max, max) + 4}">−${max}</text>`;
+  const dots = pts.map(([x, y], i) => `
+    <g class="eq-dot${S.eqDrag === i ? " active" : ""}" data-band="${i}" tabindex="0" role="slider" aria-label="${fmtHz(e.bands[i])}" aria-valuemin="${-max}" aria-valuemax="${max}" aria-valuenow="${e.gains[i]}" aria-valuetext="${fmtDb(e.gains[i])}">
+      <line class="eq-stem" x1="${x}" x2="${x}" y1="${EQ.top}" y2="${base}"/>
+      <circle class="eq-hit" cx="${x}" cy="${y}" r="22"/>
+      <circle class="eq-knob" cx="${x}" cy="${y}" r="9"/>
+      ${S.eqDrag === i ? `<text class="eq-val" x="${x}" y="${Math.max(14, y - 16)}">${esc(fmtDb(e.gains[i]))}</text>` : ""}
+      <text class="eq-hz" x="${x}" y="${EQ.h - 16}">${esc(fmtHz(e.bands[i]))}</text>
+    </g>`).join("");
+  return `<svg class="eq-svg${e.enabled ? "" : " off"}" id="eq-svg" viewBox="0 0 ${EQ.w} ${EQ.h}" width="${EQ.w}" height="${EQ.h}">
+      <defs><linearGradient id="eq-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--primary-color)" stop-opacity=".35"/><stop offset="1" stop-color="var(--primary-color)" stop-opacity="0"/></linearGradient></defs>
+      ${grid}${labels}
+      <path class="eq-area" d="${curve} L${pts[n - 1][0]},${base} L${pts[0][0]},${base} Z"/>
+      <path class="eq-curve" d="${curve}"/>
+      ${dots}
+    </svg>`;
+}
+
+function viewEq() {
+  const e = S.eq;
+  if (!e) return `<section class="card"><h2>Equalizer</h2><p class="desc">Wird geladen …</p></section>`;
+  const presetName = e.preset === "custom" ? "Eigene Einstellung" : (e.presets.find((p) => p.id === e.preset) || {}).name;
+  return `<section class="card eq-card">
+      <div class="card-head"><h2>Equalizer</h2>
+        <button class="switch" role="switch" aria-checked="${!!e.enabled}" data-act="eq-toggle" aria-label="Equalizer an oder aus"></button></div>
+      <p class="desc">Ziehe die Punkte nach oben oder unten oder wähle eine Voreinstellung. Änderungen hörst du sofort – ohne Unterbrechung, auf allen Lautsprechern.</p>
+      <div class="eq-wrap" id="eq-wrap">${eqSvg()}</div>
+      <p class="eq-current">${e.enabled ? esc(presetName || "") : "Aus"}</p>
+      <div class="eq-presets" role="group" aria-label="Voreinstellungen">
+        ${e.presets.map((p) => `<button class="pchip" data-act="eq-preset" data-id="${esc(p.id)}" aria-pressed="${e.enabled && e.preset === p.id}">${esc(p.name)}</button>`).join("")}
+      </div>
+    </section>`;
+}
+
+let eqTimer = null, eqPending = null;
+function eqSend(changes, now = false) {
+  eqPending = { ...(eqPending || {}), ...changes };
+  clearTimeout(eqTimer);
+  const go = async () => {
+    const body = eqPending; eqPending = null;
+    try {
+      const r = await api("api/config/eq", { method: "PUT", body });
+      if (S.eqDrag === null) { S.eq = r; if (S.tab === "eq") render(); }
+      else S.eq.preset = r.preset;
+    } catch (err) { toast(err.message, true); }
+  };
+  if (now) go(); else eqTimer = setTimeout(go, 120);
+}
+
+function eqRedraw() { const w = $("#eq-wrap"); if (w) w.innerHTML = eqSvg(); }
+window.addEventListener("resize", () => { if (S.tab === "eq" && S.eq && S.eqDrag === null) eqRedraw(); });
+
+function eqGainAt(ev) {
+  const svgEl = $("#eq-svg"), r = svgEl.getBoundingClientRect(), max = S.eq.max;
+  const y = ((ev.clientY - r.top) / r.height) * EQ.h;
+  const g = max - ((y - EQ.top) * 2 * max) / (EQ.h - EQ.top - EQ.bottom);
+  return Math.round(Math.max(-max, Math.min(max, g)) * 2) / 2;
+}
+
+function eqBandAt(ev) {
+  const r = $("#eq-svg").getBoundingClientRect(), n = S.eq.bands.length;
+  const x = ((ev.clientX - r.left) / r.width) * EQ.w;
+  let best = 0;
+  for (let i = 1; i < n; i++) if (Math.abs(eqX(i, n) - x) < Math.abs(eqX(best, n) - x)) best = i;
+  return best;
+}
+
+function eqSet(band, gain) {
+  if (S.eq.gains[band] === gain && S.eq.enabled) return;
+  S.eq.gains = S.eq.gains.map((g, i) => (i === band ? gain : g));
+  const changes = { gains: S.eq.gains };
+  if (!S.eq.enabled) { S.eq.enabled = true; changes.enabled = true; }
+  eqSend(changes);
+}
+
+document.addEventListener("pointerdown", (ev) => {
+  const svgEl = ev.target.closest("#eq-svg");
+  if (!svgEl || !S.eq) return;
+  ev.preventDefault();
+  svgEl.setPointerCapture(ev.pointerId);
+  S.eqDrag = eqBandAt(ev);
+  eqSet(S.eqDrag, eqGainAt(ev));
+  eqRedraw();
+});
+document.addEventListener("pointermove", (ev) => {
+  if (S.eqDrag === null || !$("#eq-svg")) return;
+  eqSet(S.eqDrag, eqGainAt(ev));
+  eqRedraw();
+});
+const eqEnd = () => {
+  if (S.eqDrag === null) return;
+  const band = S.eqDrag;
+  S.eqDrag = null;
+  if (eqPending) eqSend({}, true);
+  render();
+  $(`.eq-dot[data-band="${band}"]`)?.focus({ preventScroll: true });
+};
+document.addEventListener("pointerup", eqEnd);
+document.addEventListener("pointercancel", eqEnd);
+document.addEventListener("keydown", (ev) => {
+  const dot = ev.target.closest?.(".eq-dot");
+  if (!dot || !S.eq) return;
+  const step = { ArrowUp: 0.5, ArrowRight: 0.5, ArrowDown: -0.5, ArrowLeft: -0.5, PageUp: 3, PageDown: -3 }[ev.key];
+  if (step === undefined && ev.key !== "Home") return;
+  ev.preventDefault();
+  const band = Number(dot.dataset.band), max = S.eq.max;
+  const gain = ev.key === "Home" ? 0 : Math.max(-max, Math.min(max, S.eq.gains[band] + step));
+  eqSet(band, gain);
+  eqRedraw();
+  $(`.eq-dot[data-band="${band}"]`)?.focus({ preventScroll: true });
+});
 
 const BITRATE_LABEL = { 96: "Normal – 96 kbit/s", 160: "Hoch – 160 kbit/s", 320: "Sehr hoch – 320 kbit/s" };
 
@@ -339,6 +484,13 @@ document.addEventListener("click", async (ev) => {
       const g = S.groups.find((x) => x.id === el.closest(".grp").dataset.gid);
       if (!g || !confirm(`Gruppe „${g.name}“ löschen?`)) return undefined;
       return once("gdel", async () => { const r = await api(`api/groups/${encodeURIComponent(g.id)}`, { method: "DELETE" }); S.groups = r.groups || []; render(); });
+    }
+    case "eq-toggle": S.eq.enabled = !S.eq.enabled; render(); return eqSend({ enabled: S.eq.enabled }, true);
+    case "eq-preset": {
+      const p = S.eq.presets.find((x) => x.id === el.dataset.id);
+      Object.assign(S.eq, { preset: p.id, gains: p.gains.slice(), enabled: true });
+      render();
+      return eqSend({ preset: p.id }, true);
     }
     case "opt-norm": return once("opt", () => saveApp({ normalisation: !S.app.settings.normalisation }));
     case "token": return once("tok", async () => {

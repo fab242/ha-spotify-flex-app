@@ -103,3 +103,8 @@
 ## 1.6.5
 
 - Klangqualität: Auswahlliste im HA-Design (vorher heller Hintergrund mit heller Schrift im dunklen Design).
+
+## 1.7.0
+
+- Neu: **Equalizer** (Reiter „Equalizer“ der Einstellungsseite) mit 6 Bändern (60 Hz – 15 kHz, ±12 dB) und 22 Voreinstellungen wie in der Spotify-App. Kurve mit der Maus/dem Finger ziehen oder Voreinstellung wählen – Änderungen wirken sofort und ohne Unterbrechung auf allen Lautsprechern.
+- Audio läuft dafür durch den neuen Dienst `flex-eq` (go-librespot → Equalizer → OwnTone). Automatischer Headroom und weicher Limiter verhindern Übersteuern bei Anhebungen.

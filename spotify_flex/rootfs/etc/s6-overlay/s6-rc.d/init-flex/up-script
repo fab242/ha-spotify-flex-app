@@ -23,6 +23,21 @@ chmod 666 /music/spotify
 # metadata pipe: carries the Spotify track position to OwnTone (audible-position sync)
 [ -p /music/spotify.metadata ] || { rm -f /music/spotify.metadata; mkfifo /music/spotify.metadata; }
 chmod 666 /music/spotify.metadata
+# go-librespot -> /run/flex/spotify.raw -> flex-eq (equalizer) -> /music/spotify -> OwnTone
+mkdir -p /run/flex
+[ -p /run/flex/spotify.raw ] || { rm -f /run/flex/spotify.raw; mkfifo /run/flex/spotify.raw; }
+chmod 666 /run/flex/spotify.raw
+python3 - <<'PY' || echo "0 0 0 0 0 0 0" > /run/flex/eq.conf
+import json
+try:
+    d = json.load(open("/data/eq.json"))
+    gains = [float(g) for g in d["gains"]][:6]
+    line = f'{1 if d.get("enabled") else 0} ' + " ".join(f"{g:.2f}" for g in gains)
+    assert len(gains) == 6
+except Exception:
+    line = "0 0 0 0 0 0 0"
+open("/run/flex/eq.conf", "w").write(line + "\n")
+PY
 
 # --- OwnTone: only the pipe as library, only localhost may control it --------
 cat > /config/owntone/owntone.conf <<EOF
@@ -68,7 +83,7 @@ device_name: "${DEVICE_NAME}"
 device_type: speaker
 bitrate: ${BITRATE}
 audio_backend: pipe
-audio_output_pipe: /music/spotify
+audio_output_pipe: /run/flex/spotify.raw
 audio_output_pipe_format: s16le
 initial_volume: 60
 volume_steps: 100

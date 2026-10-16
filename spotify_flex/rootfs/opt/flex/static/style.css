@@ -56,7 +56,7 @@ code { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; 
 .chip.bad::before { background: var(--error-color); }
 
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--divider-color); margin-bottom: 16px; overflow-x: auto; scrollbar-width: none; }
-.tabs button { border: 0; background: none; padding: 10px 16px; cursor: pointer; color: var(--secondary-text-color);
+.tabs button { flex: none; border: 0; background: none; padding: 10px 16px; cursor: pointer; color: var(--secondary-text-color);
   border-bottom: 2px solid transparent; font-weight: 500; white-space: nowrap; }
 .tabs button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); }
 
@@ -143,3 +143,35 @@ select.field { appearance: auto; background: var(--input-fill-color, var(--card-
 select.field option { background-color: var(--card-background-color, #fff); color: var(--primary-text-color, #212121); }
 select.field option:checked { background-color: var(--primary-color); color: var(--text-primary-color, #fff); }
 .lbl small.hint { font-size: 12px; color: var(--secondary-text-color); }
+
+/* Equalizer */
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.card-head { margin-bottom: 4px; }
+.card-head h2 { margin: 0; font-size: 1.15rem; font-weight: 500; }
+.eq-wrap { margin: 8px 0 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+.eq-svg { display: block; width: 100%; height: auto; overflow: visible; cursor: ns-resize; }
+.eq-grid { stroke: var(--divider-color); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.eq-grid.zero { stroke: var(--secondary-text-color); stroke-opacity: .5; stroke-dasharray: 4 4; }
+.eq-db, .eq-hz, .eq-val { fill: var(--secondary-text-color); font-size: 12px; }
+.eq-hz, .eq-val { text-anchor: middle; }
+.eq-val { fill: var(--primary-text-color); font-weight: 600; }
+.eq-area { fill: url(#eq-fill); }
+.eq-curve { fill: none; stroke: var(--primary-color); stroke-width: 3; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.eq-stem { stroke: transparent; }
+.eq-hit { fill: transparent; }
+.eq-knob { fill: var(--primary-color); stroke: var(--card-background-color, #fff); stroke-width: 3; vector-effect: non-scaling-stroke; transition: r .12s; }
+.eq-dot:focus { outline: none; }
+.eq-dot:focus-visible .eq-knob, .eq-dot.active .eq-knob { r: 12; }
+.eq-dot:focus-visible .eq-stem, .eq-dot.active .eq-stem { stroke: var(--divider-color); }
+.eq-svg.off .eq-curve, .eq-svg.off .eq-knob { stroke-opacity: .45; fill-opacity: .45; }
+.eq-svg.off .eq-curve { stroke: var(--secondary-text-color); }
+.eq-svg.off .eq-knob { fill: var(--secondary-text-color); }
+.eq-svg.off .eq-area { opacity: .25; }
+.eq-current { margin: 4px 0 10px; font-weight: 500; color: var(--primary-text-color); }
+.eq-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.pchip { border: 1px solid var(--divider-color); background: transparent; color: var(--primary-text-color);
+  border-radius: 18px; padding: 7px 14px; cursor: pointer; font-size: .875rem; }
+.pchip:hover { border-color: var(--primary-color); }
+.pchip[aria-pressed="true"] { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
+@media (max-width: 600px) { .eq-presets { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; } .pchip { flex: none; } }
+@media (max-width: 420px) { .tabs button { padding: 10px 11px; } }

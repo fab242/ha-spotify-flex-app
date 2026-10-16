@@ -39,6 +39,10 @@ RUN git clone --depth 1 --branch "${GLR_VERSION}" https://github.com/devgianlu/g
  && cd /src/go-librespot \
  && CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o /out/usr/bin/go-librespot ./cmd/daemon
 
+# --- flex-eq: 6-band equalizer between go-librespot and OwnTone -----------------
+COPY eq /src/eq
+RUN gcc -O2 -Wall -Werror -o /out/usr/bin/flex-eq /src/eq/flexeq.c -lm
+
 # --- runtime dependencies as apk "so:" providers -------------------------------
 RUN scanelf --needed --nobanner --format '%n#p' --recursive /out \
       | tr ',' '\n' | sort -u \
@@ -64,4 +68,5 @@ RUN find /etc/s6-overlay/s6-rc.d -name run -exec chmod +x {} + \
  && chmod +x /etc/s6-overlay/s6-rc.d/init-flex/up-script \
  && (/usr/sbin/owntone -v || true) \
  && test -x /usr/bin/go-librespot \
+ && test -x /usr/bin/flex-eq \
  && python3 -c "import aiohttp; print('aiohttp', aiohttp.__version__)"

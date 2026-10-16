@@ -1,6 +1,6 @@
 """Constants shared by the Spotify Flex app backend."""
 
-VERSION = "1.6.5"
+VERSION = "1.7.0"
 
 API_BASE = "https://api.spotify.com/v1"
 AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
@@ -29,6 +29,8 @@ STATE_FILE = "/data/state.json"
 LIBRESPOT_STATE = "/config/go-librespot/state.json"
 LIBRESPOT_CONFIG = "/config/go-librespot/config.yml"
 LIBRESPOT_SERVICE = "/run/service/svc-golibrespot"
+EQ_FILE = "/data/eq.json"
+EQ_CONTROL = "/run/flex/eq.conf"
 INGRESS_PORT = 8099
 GROUPS_FILE = "/data/groups.json"
 API_TOKEN_FILE = "/data/api_token"

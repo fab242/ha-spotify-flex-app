@@ -95,3 +95,7 @@
 ## 1.6.3
 
 - Einstellungsseite, Reiter „System“: Gerätename, Klangqualität und Lautstärke-Normalisierung direkt einstellbar. Die Werte bleiben die App-Optionen (auch unter Konfiguration sichtbar); beim Speichern startet nur der Spotify-Empfänger kurz neu, nicht die ganze App.
+
+## 1.6.4
+
+- Klangqualität: Wert wird im Format der App-Optionen gespeichert (Text statt Zahl).

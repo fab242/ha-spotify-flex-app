@@ -55,16 +55,17 @@ def test_apply(tmp_path, monkeypatch):
 
     monkeypatch.setattr(appopts, "push_supervisor", push)
     monkeypatch.setattr(appopts, "restart_receiver", restart)
-    current = {"device_name": "Home Flex", "bitrate": 320, "normalisation": True, "zeroconf": False,
+    current = {"device_name": "Home Flex", "bitrate": "320", "normalisation": True, "zeroconf": False,
                "client_id": "", "log_level": "info", "ha_integration": True}
 
     # unchanged value: nothing is written, receiver keeps running
     new, restarted = asyncio.run(appopts.apply(None, current, {"bitrate": 320}))
+    assert appopts.receiver_settings(current)["bitrate"] == 320
     assert new == current and not restarted and not pushed and not restarts
 
     new, restarted = asyncio.run(appopts.apply(None, current, {"bitrate": 160, "device_name": "Küche"}))
     assert restarted and restarts == [1]
-    assert pushed == [{**current, "bitrate": 160, "device_name": "Küche"}]  # full option set
+    assert pushed == [{**current, "bitrate": "160", "device_name": "Küche"}]  # full option set
     assert json.loads(opts.read_text())["device_name"] == "Küche"
     assert "\nbitrate: 160\n" in cfg.read_text() and 'device_name: "Küche"' in cfg.read_text()
     assert new["zeroconf"] is False and new["ha_integration"] is True

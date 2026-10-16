@@ -29,7 +29,12 @@ class OptionsError(ValueError):
 
 
 def receiver_settings(options: dict) -> dict:
-    return {key: options.get(key, default) for key, default in DEFAULTS.items()}
+    out = {key: options.get(key, default) for key, default in DEFAULTS.items()}
+    try:  # the Supervisor keeps list(96|160|320) options as strings
+        out["bitrate"] = int(out["bitrate"])
+    except (TypeError, ValueError):
+        out["bitrate"] = DEFAULTS["bitrate"]
+    return out
 
 
 def validate(changes: dict) -> dict:
@@ -105,9 +110,12 @@ async def restart_receiver() -> bool:
 async def apply(session: aiohttp.ClientSession, options: dict, changes: dict) -> tuple[dict, bool]:
     """Save changes; returns (new options, receiver restarted)."""
     clean = validate(changes)
-    if not clean or all(options.get(k, DEFAULTS[k]) == v for k, v in clean.items()):
+    current = receiver_settings(options)
+    if not clean or all(current[k] == v for k, v in clean.items()):
         return options, False
     merged = {**options, **clean}
+    if "bitrate" in merged:  # schema list(...) -> the Supervisor expects the string form
+        merged["bitrate"] = str(merged["bitrate"])
     await push_supervisor(session, merged)
     try:  # Supervisor writes options.json only on the next start - keep ours in step
         tmp = Path(OPTIONS_FILE + ".tmp")

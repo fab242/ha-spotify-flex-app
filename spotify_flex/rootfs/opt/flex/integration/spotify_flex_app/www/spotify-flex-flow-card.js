@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.7.1";
+const CARD_VERSION = "1.7.2";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -55,38 +55,31 @@ const fmt = (s) => {
   return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
 };
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (_) { return d; } };
-/* Farbpalette eines Covers: bis zu drei prägende, voneinander verschiedene Farbtöne
-   (Gewicht = Sättigung × Fläche, mittelhelle Farben zählen mehr). Graustufen-Cover -> []. */
-function coverPalette(img) {
-  const n = 48, c = document.createElement("canvas");
+const rgbHsl = ([r, g, b]) => {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  if (mx === mn) return [0, 0, Math.round(l * 100)];
+  const d = mx - mn, s2 = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  const h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [Math.round(h * 60), Math.round(s2 * 100), Math.round(l * 100)];
+};
+
+/* Mittlere Farbe eines Covers (wie HOMEii: alle Pixel, kräftige/mittelhelle etwas stärker gewichtet) */
+function coverAverage(img) {
+  const n = 40, c = document.createElement("canvas");
   c.width = n; c.height = n;
   const ctx = c.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, n, n);
   const d = ctx.getImageData(0, 0, n, n).data;   // wirft bei CORS-gesperrten Bildern
-  const bins = new Array(24).fill(0).map(() => ({ w: 0, x: 0, y: 0, s: 0 }));
-  let total = 0;
+  let r = 0, g = 0, b = 0, w = 0;
   for (let i = 0; i < d.length; i += 4) {
-    const r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
-    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, ch = mx - mn;
-    if (l < 0.08 || l > 0.95) continue;
-    total += 1;
-    const sat = ch === 0 ? 0 : ch / (1 - Math.abs(2 * l - 1));
-    if (sat < 0.1) continue;
-    let h = mx === r ? ((g - b) / ch) % 6 : mx === g ? (b - r) / ch + 2 : (r - g) / ch + 4;
-    h = (h * 60 + 360) % 360;
-    const w = sat * (1 - Math.abs(l - 0.5));
-    const bin = bins[Math.floor(h / 15) % 24];
-    bin.w += w; bin.x += Math.cos(h * Math.PI / 180) * w; bin.y += Math.sin(h * Math.PI / 180) * w; bin.s += sat * w;
+    const R = d[i] / 255, G = d[i + 1] / 255, B = d[i + 2] / 255;
+    const mx = Math.max(R, G, B), mn = Math.min(R, G, B), l = (mx + mn) / 2;
+    const sat = mx === mn ? 0 : (mx - mn) / (1 - Math.abs(2 * l - 1));
+    const wt = 0.35 + sat * 0.9 + (1 - Math.abs(l - 0.52)) * 0.55;
+    r += d[i] * wt; g += d[i + 1] * wt; b += d[i + 2] * wt; w += wt;
   }
-  const cand = bins.filter((b) => b.w > 0).map((b) => ({ w: b.w, s: b.s / b.w, h: (Math.atan2(b.y, b.x) * 180 / Math.PI + 360) % 360 }))
-    .sort((a, b) => b.w - a.w);
-  if (!total || !cand.length || cand[0].w < total * 0.008) return [];
-  const pick = [cand[0]];
-  for (const c2 of cand.slice(1)) {
-    if (pick.length >= 3 || c2.w < cand[0].w * 0.12) break;
-    if (pick.every((p) => Math.min(Math.abs(p.h - c2.h), 360 - Math.abs(p.h - c2.h)) >= 30)) pick.push(c2);
-  }
-  return pick.map((p) => [Math.round(p.h), p.s]);
+  return w ? [r / w, g / w, b / w] : null;
 }
 
 try {  // Farbwechsel weich überblenden
@@ -725,63 +718,54 @@ class SpotifyFlexFlowCard extends HTMLElement {
     this._lyricTick(true);
   }
 
-  /* ----------------------------------------------- Hintergrund nach Cover-Farbe */
+  /* ------------------------------------- Hintergrund: weichgezeichnetes Cover (wie HOMEii) */
   _tint(proxyUrl, directUrl) {
     const token = (this._tintToken = (this._tintToken || 0) + 1);
-    const reset = () => {
-      if (token !== this._tintToken) return;
+    if (!directUrl) {                       // kein Cover: weiß
       ["--sf-bg", "--sf-hi", "--sf-lo", "--sf-lo2"].forEach((v) => this.style.removeProperty(v));
-      this._setGradient(null);   // kein Cover: weiß
-    };
-    if (!directUrl) return reset();   // kein Cover: weiß
+      this._setArt(null);
+      return;
+    }
+    // Farbe/Helligkeit messen (für Schleier und Neumorph-Schatten); Bild selbst braucht dafür kein CORS
+    const done = (avg) => { if (token === this._tintToken) this._applyArt(directUrl, avg); };
     const tryLoad = (urls) => {
       const url = urls.shift();
-      if (!url) return reset();
+      if (!url) return done(null);
       const im = new Image();
       if (!url.startsWith("/") && !url.startsWith(location.origin)) im.crossOrigin = "anonymous";
-      im.onload = () => {
-        if (token !== this._tintToken) return;
-        try { this._applyTint(coverPalette(im)); } catch (_) { tryLoad(urls); }  // Canvas gesperrt (CORS) -> nächste Quelle
-      };
+      im.onload = () => { try { done(coverAverage(im)); } catch (_) { tryLoad(urls); } };
       im.onerror = () => tryLoad(urls);
       im.src = url;
     };
     tryLoad([proxyUrl, directUrl].filter(Boolean));
   }
 
-  _applyTint(pal) {
-    if (!pal) return;
-    const sat = (x) => Math.round(Math.min(72, 38 + x * 60));
-    let cols;
-    if (!pal.length) cols = [[215, 6, 86], [215, 4, 93], [215, 8, 80]];          // Graustufen-Cover: zartes Grau
-    else {
-      cols = pal.map(([h, s2], i) => [h, sat(s2), [80, 85, 76][i]]);
-      // nur ein Farbton im Cover: Verlauf aus hellen/dunkleren Stufen und leicht verschobenem Ton
-      if (cols.length === 1) cols.push([(cols[0][0] + 22) % 360, Math.max(25, cols[0][1] - 10), 88], [(cols[0][0] + 338) % 360, cols[0][1], 74]);
-      if (cols.length === 2) cols.push([cols[0][0], Math.max(25, cols[0][1] - 8), 88]);
-    }
-    const hsl = ([h, s2, l]) => `hsl(${h} ${s2}% ${l}%)`;
-    const [h, S] = cols[0];
+  _applyArt(url, avg) {
+    const rgb = avg || [200, 205, 212];
+    const lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+    // heller Schleier: dunkle Cover werden so weit aufgehellt, dass dunkle Schrift lesbar bleibt
+    const veil = Math.max(0.28, Math.min(0.68, (0.78 - lum) / (1 - lum)));
+    const mix = rgb.map((v) => Math.round(v + (255 - v) * veil));
+    const [h, S, L] = rgbHsl(mix);
     const st = this.style;
-    st.setProperty("--sf-bg", `hsl(${h} ${S}% 85%)`);
-    st.setProperty("--sf-hi", `hsl(${h} ${Math.min(100, S + 10)}% 94%)`);
-    st.setProperty("--sf-lo", `hsl(${h} ${Math.round(S * 0.7)}% 72%)`);
-    st.setProperty("--sf-lo2", `hsl(${h} ${Math.round(S * 0.65)}% 65%)`);
-    this._setGradient(`radial-gradient(120% 90% at 0% 0%, ${hsl(cols[0])} 0%, transparent 62%),
-      radial-gradient(90% 80% at 100% 0%, ${hsl(cols[1])} 0%, transparent 60%),
-      radial-gradient(110% 90% at 100% 100%, ${hsl(cols[2])} 0%, transparent 62%),
-      radial-gradient(90% 80% at 0% 100%, ${hsl(cols[1])} 0%, transparent 58%),
-      linear-gradient(135deg, ${hsl(cols[0])}, ${hsl(cols[2])})`);
+    st.setProperty("--sf-bg", `hsl(${h} ${S}% ${L}%)`);
+    st.setProperty("--sf-hi", `hsl(${h} ${S}% ${Math.min(97, L + 9)}%)`);
+    st.setProperty("--sf-lo", `hsl(${h} ${Math.round(S * 0.8)}% ${L - 13}%)`);
+    st.setProperty("--sf-lo2", `hsl(${h} ${Math.round(S * 0.75)}% ${L - 19}%)`);
+    this._setArt(url, veil);
   }
 
-  /* Verlauf überblenden: zwei Ebenen, die neue wird weich eingeblendet */
-  _setGradient(css) {
+  /* zwei Ebenen: das neue Cover wird weich über das alte geblendet */
+  _setArt(url, veil = 0.5) {
     const layers = this.shadowRoot?.querySelectorAll(".bgfx i");
     if (!layers || layers.length < 2) return;
     this._bgLayer = this._bgLayer ? 0 : 1;
     const on = layers[this._bgLayer], off = layers[1 - this._bgLayer];
-    if (css) on.style.backgroundImage = css;
-    on.classList.toggle("on", !!css);
+    if (url) {
+      on.style.backgroundImage = `url(${JSON.stringify(url)})`;
+      on.style.setProperty("--veil", String(veil));
+    }
+    on.classList.toggle("on", !!url);
     off.classList.remove("on");
   }
 
@@ -1349,7 +1333,9 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:20p
   min-height:420px; height:var(--h); background:transparent; isolation:isolate; }
 /* Cover-Farbverlauf: bündig über die ganze Kachel, zwei Ebenen zum Überblenden */
 .surface > .bgfx { position:absolute; inset:0; z-index:-1; pointer-events:none; grid-area:auto !important; visibility:visible !important; border-radius:inherit; overflow:hidden; }
-.bgfx i { position:absolute; inset:0; opacity:0; transition:opacity 1.1s ease; }
+.bgfx i { position:absolute; inset:-60px; opacity:0; transition:opacity 1.1s ease; background:center/cover no-repeat;
+  filter:blur(46px) saturate(1.6); transform:scale(1.15); }
+.bgfx i::after { content:""; position:absolute; inset:0; background:rgba(255,255,255,var(--veil,.5)); }
 .bgfx i.on { opacity:1; }
 .surface.loading > :not(.toast), .surface:not(.ready) > :not(.toast) { visibility:hidden; }
 .surface.narrow { height:auto; min-height:0; }

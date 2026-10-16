@@ -1,7 +1,7 @@
 """Constants for the Spotify Flex Player integration (client of the Spotify Flex app)."""
 
 DOMAIN = "spotify_flex_app"
-VERSION = "1.7.6"
+VERSION = "1.7.7"
 CONF_TOKEN = "token"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8099

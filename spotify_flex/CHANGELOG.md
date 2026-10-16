@@ -133,3 +133,7 @@
 ## 1.7.6
 
 - Player-Kachel: Hintergrund als **Farbverlauf aus den Cover-Farben** (bis zu drei prägende Farbtöne, bündig über die ganze Kachel, weiches Überblenden beim Titelwechsel). Knöpfe und Regler sind leicht durchscheinend, damit der Verlauf sichtbar bleibt. Ohne Cover weiß.
+
+## 1.7.7
+
+- Player-Kachel: Hintergrund ist jetzt – wie bei HOMEii – das **weichgezeichnete Cover selbst** statt eines berechneten Verlaufs; die Farben stimmen dadurch genau mit dem Cover überein. Ein heller Schleier (stärker bei dunklen Covern) hält Schrift und Neumorph-Look lesbar.

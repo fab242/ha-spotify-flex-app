@@ -115,6 +115,32 @@
           "description": "6 Werte in dB (−12 … 12) für 60 Hz, 150 Hz, 400 Hz, 1 kHz, 2,4 kHz, 15 kHz."
         }
       }
+    },
+    "announce": {
+      "name": "Durchsage",
+      "description": "Spielt Ansagen (TTS), Nachrichten oder andere Audio-Links synchron über die Spotify-Flex-Lautsprecher; Spotify wird dafür pausiert, die Lautstärken danach wiederhergestellt.",
+      "fields": {
+        "media": {
+          "name": "Medien",
+          "description": "Liste aus media_content_id (http(s)-Adresse oder media-source://…, z. B. TTS) und optional volume (0–100)."
+        },
+        "group": {
+          "name": "Gruppe",
+          "description": "Lautsprecher-Gruppe (Name), die vorher eingeschaltet wird."
+        },
+        "wait": {
+          "name": "Warten",
+          "description": "Erst zurückkehren, wenn alles abgespielt ist."
+        },
+        "timeout": {
+          "name": "Zeitlimit",
+          "description": "Maximale Dauer in Sekunden."
+        }
+      }
+    },
+    "stop_announcement": {
+      "name": "Durchsage stoppen",
+      "description": "Beendet eine laufende Durchsage."
     }
   }
 }

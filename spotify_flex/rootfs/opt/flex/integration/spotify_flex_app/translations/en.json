@@ -115,6 +115,32 @@
           "description": "6 values in dB (-12 … 12) for 60 Hz, 150 Hz, 400 Hz, 1 kHz, 2.4 kHz, 15 kHz."
         }
       }
+    },
+    "announce": {
+      "name": "Announcement",
+      "description": "Plays TTS, news or other audio URLs in sync on the Spotify Flex speakers; Spotify is paused and speaker volumes are restored afterwards.",
+      "fields": {
+        "media": {
+          "name": "Media",
+          "description": "List of media_content_id (http(s) URL or media-source://…, e.g. TTS) and optional volume (0–100)."
+        },
+        "group": {
+          "name": "Group",
+          "description": "Speaker group (name) to switch on first."
+        },
+        "wait": {
+          "name": "Wait",
+          "description": "Return only when everything has been played."
+        },
+        "timeout": {
+          "name": "Timeout",
+          "description": "Maximum duration in seconds."
+        }
+      }
+    },
+    "stop_announcement": {
+      "name": "Stop announcement",
+      "description": "Ends a running announcement."
     }
   }
 }

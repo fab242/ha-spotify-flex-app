@@ -174,6 +174,14 @@ class OwnTone:
     async def stop(self) -> None:
         await _call(self._s, "PUT", OWNTONE_URL + "/api/player/stop", what="OwnTone")
 
+    async def clear_queue(self) -> None:
+        await _call(self._s, "PUT", OWNTONE_URL + "/api/queue/clear", what="OwnTone")
+
+    async def play_url(self, url: str) -> None:
+        """Replace the queue with one stream/file URL and start it (announcements)."""
+        await _call(self._s, "POST", OWNTONE_URL + "/api/queue/items/add",
+                    params={"uris": url, "clear": "true", "playback": "start"}, what="OwnTone")
+
 
 class MetaPipe:
     """Shairport-style metadata pipe next to the audio pipe (<pipe>.metadata).

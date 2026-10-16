@@ -171,3 +171,9 @@
 ## 1.8.5
 
 - Player-Kachel 2.0.0: visueller Editor („Spotify Flex Flow-Karte anpassen“) mit Breite/Ausrichtung, Hintergrund, Farbstärke, Akzentfarbe, Kachel-Optik, Liedtext-Optionen, Cover-Flow und Knopfauswahl.
+
+## 1.9.0
+
+- Neu: **Durchsagen** – Dienst `spotify_flex_app.announce` spielt TTS, Nachrichten oder andere Audio-Links synchron über die Spotify-Flex-Lautsprecher (Spotify wird pausiert, Lautstärken danach wiederhergestellt); `spotify_flex_app.stop_announcement` bricht ab. Ersatz für Music Assistant in Routinen.
+- Die Player-Kachel ist jetzt ein eigenes HACS-Paket (fab242/spotify-flex-flow-card) und nicht mehr in der App enthalten.
+- Nach dem Update Home Assistant einmal neu starten.

@@ -6,12 +6,13 @@
   ],
   "config_flow": true,
   "dependencies": [
-    "http"
+    "http",
+    "media_source"
   ],
   "documentation": "https://github.com/fab242/ha-spotify-flex-app",
   "integration_type": "hub",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/fab242/ha-spotify-flex-app/issues",
   "requirements": [],
-  "version": "1.8.5"
+  "version": "1.9.0"
 }

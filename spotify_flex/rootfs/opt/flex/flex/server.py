@@ -23,6 +23,7 @@ from . import appopts, hassbridge, netheal
 from .groups import GroupStore
 from .speakercfg import SpeakerConfig
 from .eq import Equalizer, EqError
+from .announce import Announcer
 from .receiver import Librespot, MetaPipe, OwnTone
 
 logging.basicConfig(level=logging.INFO, format="[spotify-flex] %(levelname)s %(message)s")
@@ -56,6 +57,7 @@ class App:
         self.session: aiohttp.ClientSession | None = None
         self.receiver: Librespot | None = None
         self.owntone: OwnTone | None = None
+        self.announcer: Announcer | None = None
         self.auth: WebAuth | None = None
         self.api: SpotifyClient | None = None
         self.status: dict | None = None
@@ -87,6 +89,7 @@ class App:
         self.session = aiohttp.ClientSession()
         self.receiver = Librespot(self.session)
         self.owntone = OwnTone(self.session)
+        self.announcer = Announcer(self.owntone, self.pause_for_announcement, self.activate_group)
         self.auth = WebAuth(self.session, self.options.get("client_id", ""))
         self.api = SpotifyClient(self.session, self.auth.token)
         self.tasks = [
@@ -187,7 +190,8 @@ class App:
                 _LOGGER.debug("audio sync: %s", err)
 
     async def audio_sync(self) -> None:
-        if self.auth_pending:
+        announcer = getattr(self, "announcer", None)
+        if self.auth_pending or (announcer and announcer.active):
             return
         try:
             st = await self.receiver.status()
@@ -236,6 +240,27 @@ class App:
                     await self.owntone.set_output(oid, volume=start)
                 except SpotifyError:
                     pass
+
+    async def pause_for_announcement(self) -> None:
+        try:
+            st = await self.receiver.status()
+            if st and not st.get("paused") and not st.get("stopped"):
+                await self.receiver.pause()
+        except SpotifyError:
+            pass
+
+    async def activate_group(self, name_or_id: str) -> dict:
+        """Gruppe (Name oder ID) aktivieren: genau ihre erreichbaren Lautsprecher einschalten."""
+        key = str(name_or_id).strip().lower()
+        group = next((g for g in self.groups.all() if g["id"] == name_or_id or g["name"].lower() == key), None)
+        if not group:
+            raise SpotifyError(f"Gruppe „{name_or_id}“ gibt es nicht.", 404)
+        known = {s["id"] for s in await self.speakers(True)}
+        ids = [i for i in group["speakers"] if i in known]
+        if not ids:
+            raise SpotifyError(f"Kein Lautsprecher der Gruppe „{group['name']}“ ist gerade erreichbar.", 409)
+        await self.select_outputs(ids)
+        return group
 
     def latency_ms(self) -> float | None:
         return statistics.median(self.latency) if self.latency else None
@@ -333,6 +358,7 @@ class App:
             "active_group": GroupStore.active(groups, speakers),
             "network": self.network_report(),
             "integration": self.integration,
+            "announcement": self.announcer.state() if self.announcer else {"active": False, "current": None},
         }
 
     @staticmethod
@@ -716,6 +742,20 @@ def build_app() -> web.Application:
     async def api_group_delete(request):
         flex.groups.delete(request.match_info["gid"])
         return ok(await speakers_changed())
+
+    # ---- Durchsagen (TTS, Nachrichten, Radio-Links) über die AirPlay-Lautsprecher
+    @r.post("/api/announce")
+    async def api_announce(request):
+        data = await body(request)
+        res = await flex.announcer.play(data.get("items") or data.get("url"), group=data.get("group") or None,
+                                        wait=data.get("wait", True) is not False,
+                                        timeout=float(data.get("timeout") or 900))
+        return ok(res)
+
+    @r.post("/api/announce/stop")
+    async def api_announce_stop(_request):
+        await flex.announcer.stop()
+        return ok({"stopped": True})
 
     @r.post("/api/groups/{gid}/activate")
     async def api_group_activate(request):

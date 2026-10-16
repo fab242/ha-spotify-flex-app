@@ -279,12 +279,33 @@ async def test_card_services(hass: HomeAssistant, fake: FakeApp) -> None:
             await hass.services.async_call(DOMAIN, "equalizer", {"gains": [1, 2]}, blocking=True, return_response=True)
 
 
-async def test_card_is_served(hass: HomeAssistant, fake: FakeApp, hass_client) -> None:
-    await _setup_via_discovery(hass)
-    client = await hass_client()
-    resp = await client.get("/spotify_flex_app/spotify-flex-flow-card.js")
-    assert resp.status == 200
-    assert "spotify-flex-flow-card" in await resp.text()
+async def test_announce_service(hass: HomeAssistant, fake: FakeApp) -> None:
+    """Durchsagen: Links werden absolut gemacht und mit Lautstärke/Gruppe an die App gegeben."""
+    orig = fake.request
+
+    async def extra(method, path, body=None, params=None, timeout=20):
+        if path.startswith("/api/announce"):
+            fake.calls.append((method, path, body, timeout))
+            return {"played": len((body or {}).get("items", []))} if path == "/api/announce" else {"stopped": True}
+        return await orig(method, path, body, params, timeout)
+
+    await hass.config.async_update(internal_url="http://192.168.0.2:8123")
+    with patch(f"custom_components.{DOMAIN}.client.FlexClient.request", side_effect=extra):
+        await _setup_via_discovery(hass)
+        r = await hass.services.async_call(DOMAIN, "announce", {
+            "group": "Wohnzimmer",
+            "media": [{"media_content_id": "/local/news/tagesschau.mp3", "volume": 50}, "https://example.org/a.mp3"],
+        }, blocking=True, return_response=True)
+        assert r == {"played": 2}
+        method, path, body, timeout = next(c for c in fake.calls if c[1] == "/api/announce")
+        assert body == {"items": [{"url": "http://192.168.0.2:8123/local/news/tagesschau.mp3", "volume": 50},
+                                  {"url": "https://example.org/a.mp3", "volume": None}],
+                        "group": "Wohnzimmer", "wait": True, "timeout": 900}
+        assert timeout == 960
+        await hass.services.async_call(DOMAIN, "stop_announcement", {}, blocking=True)
+        assert any(c[1] == "/api/announce/stop" for c in fake.calls)
+        with pytest.raises(Exception):
+            await hass.services.async_call(DOMAIN, "announce", {"media": ["ftp://x/y.mp3"]}, blocking=True, return_response=True)
 
 
 async def test_audible_position_uses_app_timestamp(hass: HomeAssistant, fake: FakeApp) -> None:

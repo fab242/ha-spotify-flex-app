@@ -1,4 +1,4 @@
-"""Services with responses for the Spotify Flex player card (search, queue, like, sleep timer, equalizer)."""
+"""Services with responses for the Spotify Flex player card (search, queue, like, sleep timer, equalizer, announcements)."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -14,6 +14,9 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt as dt_util
+
+from homeassistant.components import media_source
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 
 from .client import FlexError
 from .const import DOMAIN
@@ -118,6 +121,41 @@ def async_setup_services(hass: HomeAssistant) -> None:
         coordinator.async_update_listeners()
         return {"ends_at": coordinator.sleep_ends.isoformat() if coordinator.sleep_ends else None}
 
+    async def _absolute(media_id: str) -> str:
+        """media-source://… (z. B. TTS) auflösen und relative Pfade zu einer für die App erreichbaren URL machen."""
+        url = media_id
+        if media_source.is_media_source_id(media_id):
+            try:
+                url = (await media_source.async_resolve_media(hass, media_id, None)).url
+            except Exception as err:  # noqa: BLE001 - message for the user
+                raise HomeAssistantError(f"Durchsage konnte nicht erzeugt werden: {err}") from err
+        if url.startswith("/"):
+            try:
+                base = get_url(hass, allow_external=False, prefer_external=False, allow_ip=True)
+            except NoURLAvailableError:
+                base = get_url(hass)
+            url = base.rstrip("/") + url
+        if not url.startswith(("http://", "https://")):
+            raise ServiceValidationError("Für Durchsagen wird eine http(s)-Adresse oder media-source://… erwartet.")
+        return url
+
+    async def announce(call: ServiceCall) -> ServiceResponse:
+        items = []
+        for it in call.data["media"]:
+            if isinstance(it, str):
+                it = {"media_content_id": it}
+            items.append({"url": await _absolute(str(it["media_content_id"])), "volume": it.get("volume")})
+        wait = call.data.get("wait", True)
+        timeout = int(call.data.get("timeout", 900))
+        body = {"items": items, "group": call.data.get("group"), "wait": wait, "timeout": timeout}
+        try:
+            return await _coordinator(hass).client.request("POST", "/api/announce", body, timeout=timeout + 60 if wait else 30)
+        except FlexError as err:
+            raise HomeAssistantError(str(err)) from err
+
+    async def stop_announcement(call: ServiceCall) -> None:
+        await _call(hass, "POST", "/api/announce/stop", {})
+
     async def equalizer(call: ServiceCall) -> ServiceResponse:
         changes = {k: call.data[k] for k in ("enabled", "preset", "gains") if k in call.data}
         if changes:
@@ -141,6 +179,17 @@ def async_setup_services(hass: HomeAssistant) -> None:
         vol.Optional("preset"): vol.All(cv.string, vol.Match(r"^[a-z_]{2,30}$")),
         vol.Optional("gains"): vol.All([vol.All(vol.Coerce(float), vol.Range(min=-12, max=12))], vol.Length(min=6, max=6)),
     }), supports_response=SupportsResponse.OPTIONAL)
+    announce_item = vol.Any(cv.string, vol.Schema({
+        vol.Required("media_content_id"): cv.string,
+        vol.Optional("volume"): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+    }, extra=vol.ALLOW_EXTRA))
+    hass.services.async_register(DOMAIN, "announce", announce, vol.Schema({
+        vol.Required("media"): vol.All(cv.ensure_list, [announce_item], vol.Length(min=1, max=10)),
+        vol.Optional("group"): cv.string,
+        vol.Optional("wait", default=True): cv.boolean,
+        vol.Optional("timeout", default=900): vol.All(vol.Coerce(int), vol.Range(min=10, max=3600)),
+    }), supports_response=SupportsResponse.OPTIONAL)
+    hass.services.async_register(DOMAIN, "stop_announcement", stop_announcement, vol.Schema({}))
     hass.services.async_register(DOMAIN, "sleep_timer", sleep_timer, vol.Schema({
         vol.Required("minutes"): vol.All(vol.Coerce(int), vol.Range(min=0, max=480)),
     }), supports_response=SupportsResponse.OPTIONAL)

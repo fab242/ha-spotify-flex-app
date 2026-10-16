@@ -54,3 +54,26 @@ equalizer:
       example: "[3, 2, 0, 0, 1, 2]"
       selector:
         object:
+announce:
+  fields:
+    media:
+      required: true
+      example: '[{"media_content_id": "media-source://tts/tts.piper?message=Hallo", "volume": 35}]'
+      selector:
+        object:
+    group:
+      example: "Wohnzimmer"
+      selector:
+        text:
+    wait:
+      default: true
+      selector:
+        boolean:
+    timeout:
+      default: 900
+      selector:
+        number:
+          min: 10
+          max: 3600
+          unit_of_measurement: s
+stop_announcement:

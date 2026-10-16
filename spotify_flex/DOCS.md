@@ -41,17 +41,25 @@ Die Integration spricht nur lokal mit der App (127.0.0.1, mit eigenem Token).
 
 ### Player-Kachel
 
-Die Integration bringt die Kachel **Spotify Flex Flow** mit (Aufbau wie HOMEii Flow). Ressource: `/spotify_flex_app/spotify-flex-flow-card.js` (Typ *JavaScript-Modul*). Karte:
+Die Kachel **Spotify Flex Flow** ist ein eigenes HACS-Paket: [fab242/spotify-flex-flow-card](https://github.com/fab242/spotify-flex-flow-card) (HACS → Benutzerdefinierte Repositories → Typ *Dashboard*). Alle Einstellungen gibt es im visuellen Editor der Karte.
+
+### Durchsagen (TTS, Nachrichten, Radio-Links)
+
+`spotify_flex_app.announce` spielt Ansagen oder Audio-Links synchron über die Spotify-Flex-Lautsprecher (AirPlay 2 über OwnTone). Spotify wird dafür pausiert, die Lautstärken der Lautsprecher werden danach wiederhergestellt. `spotify_flex_app.stop_announcement` bricht ab.
 
 ```yaml
-type: custom:spotify-flex-flow-card
-entity: media_player.spotify_flex_player
-height: 600          # optional
-lyrics_offset: 2.3   # optional: Sekunden AirPlay-Verzögerung für den Liedtext
-cover_flow: true     # optional: nächstes Cover neben dem aktuellen
+action: spotify_flex_app.announce
+data:
+  group: Wohnzimmer            # optional: Gruppe vorher einschalten
+  media:
+    - media_content_id: "media-source://tts/tts.piper?message=Guten%20Morgen"
+      volume: 35
+    - media_content_id: "https://example.org/nachrichten.mp3"
+      volume: 50
+  wait: true                   # erst zurück, wenn alles gespielt ist
 ```
 
-Liedtexte kommen von lrclib.net (Titel, Künstler, Album und Dauer werden dorthin gesendet). Ein springender Punkt landet auf jedem Wort, wenn es gesungen wird. Die Verzögerung zwischen Spotify und dem Lautsprecher misst die App laufend selbst (Attribut `audio_latency_ms` am Player); −/+ unter dem Liedtext ist nur noch Feinkorrektur. Zeilenanfänge kommen von lrclib.net, die Wortzeiten innerhalb einer Zeile werden nach Silben geschätzt.
+Liedtexte kommen von lrclib.net (Titel, Künstler, Album und Dauer werden dorthin gesendet). Die Verzögerung zwischen Spotify und dem Lautsprecher misst die App laufend selbst (Attribut `audio_latency_ms` am Player).
 
 ## Voraussetzungen und Grenzen
 

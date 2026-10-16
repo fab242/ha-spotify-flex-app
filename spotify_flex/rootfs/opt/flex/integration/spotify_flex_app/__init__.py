@@ -1,8 +1,6 @@
 """Spotify Flex Player: Home Assistant entities for the Spotify Flex app."""
 from __future__ import annotations
 
-from pathlib import Path
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
@@ -11,7 +9,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .client import FlexClient
-from .const import CARD_URL, CONF_TOKEN, DOMAIN
+from .const import CONF_TOKEN, DOMAIN
 from .coordinator import FlexCoordinator
 from .services import async_setup_services
 
@@ -20,11 +18,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Serve the player card and register the card services."""
-    from homeassistant.components.http import StaticPathConfig
-
-    card = Path(__file__).parent / "www" / "spotify-flex-flow-card.js"
-    await hass.http.async_register_static_paths([StaticPathConfig(CARD_URL, str(card), False)])
+    """Register the services (the player card is a separate HACS package: fab242/spotify-flex-flow-card)."""
     async_setup_services(hass)
     return True
 

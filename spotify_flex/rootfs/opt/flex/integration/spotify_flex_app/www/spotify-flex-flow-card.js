@@ -744,7 +744,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const rgb = avg || [200, 205, 212];
     const lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
     // heller Schleier: dunkle Cover werden so weit aufgehellt, dass dunkle Schrift lesbar bleibt
-    const veil = Math.max(0.28, Math.min(0.68, (0.78 - lum) / (1 - lum)));
+    const veil = Math.max(0.12, Math.min(0.66, (0.7 - lum) / (1 - lum)));
     const mix = rgb.map((v) => Math.round(v + (255 - v) * veil));
     const [h, S, L] = rgbHsl(mix);
     const st = this.style;
@@ -1334,7 +1334,7 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:20p
 /* Cover-Farbverlauf: bündig über die ganze Kachel, zwei Ebenen zum Überblenden */
 .surface > .bgfx { position:absolute; inset:0; z-index:-1; pointer-events:none; grid-area:auto !important; visibility:visible !important; border-radius:inherit; overflow:hidden; }
 .bgfx i { position:absolute; inset:-60px; opacity:0; transition:opacity 1.1s ease; background:center/cover no-repeat;
-  filter:blur(46px) saturate(1.6); transform:scale(1.15); }
+  filter:blur(46px) saturate(2.1) brightness(1.08); transform:scale(1.15); }
 .bgfx i::after { content:""; position:absolute; inset:0; background:rgba(255,255,255,var(--veil,.5)); }
 .bgfx i.on { opacity:1; }
 .surface.loading > :not(.toast), .surface:not(.ready) > :not(.toast) { visibility:hidden; }

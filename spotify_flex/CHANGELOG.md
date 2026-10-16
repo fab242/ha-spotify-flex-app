@@ -137,3 +137,7 @@
 ## 1.7.7
 
 - Player-Kachel: Hintergrund ist jetzt – wie bei HOMEii – das **weichgezeichnete Cover selbst** statt eines berechneten Verlaufs; die Farben stimmen dadurch genau mit dem Cover überein. Ein heller Schleier (stärker bei dunklen Covern) hält Schrift und Neumorph-Look lesbar.
+
+## 1.7.8
+
+- Player-Kachel: Cover-Hintergrund kräftiger (stärkere Sättigung, dünnerer heller Schleier; nur sehr dunkle Cover werden stärker aufgehellt).

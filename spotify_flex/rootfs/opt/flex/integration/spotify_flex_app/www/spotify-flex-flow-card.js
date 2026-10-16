@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.7.3";
+const CARD_VERSION = "1.7.4";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -71,14 +71,17 @@ function coverAverage(img) {
   const ctx = c.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, n, n);
   const d = ctx.getImageData(0, 0, n, n).data;   // wirft bei CORS-gesperrten Bildern
-  let r = 0, g = 0, b = 0, w = 0;
+  let r = 0, g = 0, b = 0, w = 0, lo = 255, hi = 0;
   for (let i = 0; i < d.length; i += 4) {
+    const y = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+    if (y < lo) lo = y; if (y > hi) hi = y;
     const R = d[i] / 255, G = d[i + 1] / 255, B = d[i + 2] / 255;
     const mx = Math.max(R, G, B), mn = Math.min(R, G, B), l = (mx + mn) / 2;
     const sat = mx === mn ? 0 : (mx - mn) / (1 - Math.abs(2 * l - 1));
     const wt = 0.35 + sat * 0.9 + (1 - Math.abs(l - 0.52)) * 0.55;
     r += d[i] * wt; g += d[i + 1] * wt; b += d[i + 2] * wt; w += wt;
   }
+  if (hi - lo < 12) return "blank";   // einfarbiger Platzhalter (z. B. schwarzes Leerbild) = kein Cover
   return w ? [r / w, g / w, b / w] : null;
 }
 
@@ -721,14 +724,17 @@ class SpotifyFlexFlowCard extends HTMLElement {
   /* ------------------------------------- Hintergrund: weichgezeichnetes Cover (wie HOMEii) */
   _tint(proxyUrl, directUrl) {
     const token = (this._tintToken = (this._tintToken || 0) + 1);
-    if (!directUrl) {                       // kein Cover: weiß
+    const white = () => {                   // kein Cover: Hintergrund bleibt weiß
       ["--sf-bg", "--sf-hi", "--sf-lo", "--sf-lo2"].forEach((v) => this.style.removeProperty(v));
       this.classList.remove("on-dark");
       this._setArt(null);
-      return;
-    }
+    };
+    if (!directUrl) return white();
     // Farbe/Helligkeit messen (für Schleier und Neumorph-Schatten); Bild selbst braucht dafür kein CORS
-    const done = (avg) => { if (token === this._tintToken) this._applyArt(directUrl, avg); };
+    const done = (avg) => {
+      if (token !== this._tintToken) return;
+      if (avg === "blank") white(); else this._applyArt(directUrl, avg);
+    };
     const tryLoad = (urls) => {
       const url = urls.shift();
       if (!url) return done(null);

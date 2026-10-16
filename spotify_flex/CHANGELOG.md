@@ -145,3 +145,8 @@
 ## 1.7.9
 
 - Player-Kachel: Cover-Hintergrund deutlich kräftiger (kaum noch Aufhellung). Bei dunklen Covern wird der Hintergrund dunkel und Schrift/Symbole schalten automatisch auf Hell.
+
+## 1.8.0
+
+- Player-Kachel: ohne Cover – oder bei einfarbigen Platzhalter-Bildern – bleibt der Hintergrund weiß.
+- Enthält die Kachel-Neuerungen aus 1.7.3–1.7.9 (flüssiger Liedtext, Zufällig abspielen, Cover-Hintergrund).

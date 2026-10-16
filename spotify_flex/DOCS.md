@@ -21,7 +21,7 @@ Die Seite der App (Seitenleiste „Spotify Flex“) enthält nur Einstellungen u
 
 * **Konten:** Spotify-Empfänger und Bibliothek anmelden oder trennen.
 * **Lautsprecher:** Anzeigename, Lautstärke beim Einschalten, maximale Lautstärke, ausblenden; Geräte mit PIN (z. B. Apple TV) koppeln.
-* **Gruppen:** beliebig viele Gruppen anlegen, umbenennen, Mitglieder ändern, löschen. Eine Gruppe schaltet genau ihre Lautsprecher ein und alle anderen aus.
+* **Lautsprecher-Gruppen** (im Reiter Lautsprecher, unter den Lautsprechern): beliebig viele Gruppen anlegen, umbenennen, Mitglieder ändern, löschen. Eine Gruppe schaltet genau ihre Lautsprecher ein und alle anderen aus.
 * **System:** Status der Home-Assistant-Integration, gemessene Audio-Verzögerung, API-Token, Netzwerkbericht.
 
 Abgespielt wird über die Player-Kachel bzw. die Home-Assistant-Entitäten.

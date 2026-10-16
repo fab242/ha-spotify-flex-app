@@ -113,7 +113,6 @@ async def main() -> None:
             await f.locator('.spk[data-id="222"] input[data-key="alias"]').fill("Wohnzimmer rechts")
             await f.locator('.spk[data-id="222"] input[data-key="alias"]').press("Tab")
             await p.wait_for_timeout(300)
-            await f.locator('#tabs button[data-tab="groups"]').click()
             await f.locator('[data-act="g-new"]').click()
             await f.locator("#g-name").fill("Überall")
             await f.locator('.editor input[value="111"]').check()

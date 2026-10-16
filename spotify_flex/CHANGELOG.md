@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.2
+
+- Einstellungsseite: Lautsprecher-Gruppen stehen jetzt im Reiter „Lautsprecher“ unter den Lautsprechern; der eigene Reiter „Gruppen“ entfällt.
+
 ## 1.0.0
 - Erste Version: go-librespot-Empfänger (Geräte-Code-Login), OwnTone-AirPlay-Ausgabe, Oberfläche mit Bibliothek, Playlists, Suche, Warteschlange, Lautsprechern und API-Konsole.
 

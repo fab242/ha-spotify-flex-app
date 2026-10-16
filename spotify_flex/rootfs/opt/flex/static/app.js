@@ -139,7 +139,8 @@ function render() {
   document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === S.tab)));
   const view = $("#view");
   if (!S.state) { view.innerHTML = `<section class="card"><h2>Spotify Flex startet …</h2><p class="desc">Die Dienste der App starten gerade. Diese Seite aktualisiert sich selbst.</p></section>`; return; }
-  view.innerHTML = { accounts: viewAccounts, speakers: viewSpeakers, groups: viewGroups, system: viewSystem }[S.tab]();
+  if (!["accounts", "speakers", "system"].includes(S.tab)) S.tab = "speakers"; // früherer Reiter „Gruppen“
+  view.innerHTML = { accounts: viewAccounts, speakers: () => viewSpeakers() + viewGroups(), system: viewSystem }[S.tab]();
 }
 
 function viewAccounts() {

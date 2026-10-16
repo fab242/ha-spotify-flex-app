@@ -113,3 +113,7 @@
 
 - Player-Kachel: neuer Button **Equalizer** (Regler-Symbol, grün wenn an) – Kurve ziehen, Voreinstellungen wählen, ein/aus; wirkt sofort.
 - Integration: neuer Dienst `spotify_flex_app.equalizer` (abfragen oder einstellen, z. B. in Automationen). Nach dem Update Home Assistant einmal neu starten.
+
+## 1.7.2
+
+- Equalizer: Anhebungen (z. B. Bass-Booster) machen Stimmen und Mitten nicht mehr leiser. Statt die ganze Lautstärke um bis zu 5 dB abzusenken, fängt jetzt ein Look-ahead-Limiter (5,8 ms) nur die Spitzen ab, die übersteuern würden.

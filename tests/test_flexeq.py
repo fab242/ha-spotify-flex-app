@@ -11,6 +11,7 @@ import pytest
 np = pytest.importorskip("numpy")
 SRC = Path(__file__).resolve().parents[1] / "spotify_flex" / "eq" / "flexeq.c"
 RATE = 44100
+LA = 256  # limiter look-ahead (frames): output is the input delayed by this much
 
 
 @pytest.fixture(scope="module")
@@ -68,16 +69,17 @@ def level(x):
 
 def test_flat_is_bit_exact(binary, tmp_path):
     pcm = tone(1000) + tone(60, amp=0.1)
-    out = run(binary, tmp_path, pcm, "1 0 0 0 0 0 0\n")
-    assert len(out) == len(pcm) and np.array_equal(out, pcm)
-    out = run(binary, tmp_path, pcm, "0 6 6 6 6 6 6\n")  # switched off -> untouched
-    assert np.array_equal(out, pcm)
+    pcm[:200] = 32767  # even full-scale input passes untouched when the EQ is flat/off
+    for conf in ("1 0 0 0 0 0 0\n", "0 6 6 6 6 6 6\n"):
+        out = run(binary, tmp_path, pcm, conf)
+        assert len(out) == len(pcm) + LA * 2
+        assert not out[: LA * 2].any() and np.array_equal(out[LA * 2:], pcm)
 
 
 def test_bands(binary, tmp_path):
     ref = {f: level(tone(f)) for f in (60, 1000, 15000)}
-    conf = "1 6 0 0 0 0 -6\n"  # bass +6, treble -6 -> curve peak ~6 dB, 2 dB allowed -> ~4 dB headroom
-    for f, expect in ((60, 6 - 4), (1000, -4), (15000, -6 - 4)):
+    conf = "1 6 0 0 0 0 -6\n"  # curve peak ~6 dB -> no overall reduction any more
+    for f, expect in ((60, 6), (1000, 0), (15000, -6)):
         out = run(binary, tmp_path, tone(f), conf)
         settled = out[len(out) // 2:]
         assert abs(level(settled) - ref[f] - expect) < 1.0, (f, level(settled) - ref[f])
@@ -86,9 +88,17 @@ def test_bands(binary, tmp_path):
 def test_live_change_and_no_clipping(binary, tmp_path):
     pcm = tone(15000, seconds=2.0, amp=0.2)
     out = run(binary, tmp_path, pcm, "1 0 0 0 0 0 0\n", change="1 0 0 0 0 0 -12\n")
-    assert len(out) == len(pcm)
+    assert len(out) == len(pcm) + LA * 2
     first, last = out[: len(out) // 4], out[-len(out) // 4:]
     assert level(last) < level(first) - 9  # treble cut arrived without restarting
     loud = run(binary, tmp_path, tone(60, amp=0.95), "1 12 12 0 0 0 0\n")
     peak = np.abs(loud.astype(int))
-    assert peak.max() <= 32767 and np.mean(peak >= 32700) < 0.02  # soft limiter instead of flat-topped clipping
+    assert peak.max() <= 31500  # look-ahead limiter keeps peaks at -0.5 dBFS, no clipping
+    assert np.mean(peak >= 31000) < 0.02
+
+
+def test_bass_boost_keeps_voice_level(binary, tmp_path):
+    """Bass-Booster must not make mids (voices) noticeably quieter."""
+    ref = level(tone(1000))
+    out = run(binary, tmp_path, tone(1000), "1 6 4 1 0 0 0\n")
+    assert level(out[len(out) // 2:]) - ref > -1.0

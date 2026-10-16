@@ -22,7 +22,7 @@ Die Seite der App (Seitenleiste „Spotify Flex“) enthält nur Einstellungen u
 * **Konten:** Spotify-Empfänger und Bibliothek anmelden oder trennen.
 * **Lautsprecher:** Anzeigename, Lautstärke beim Einschalten, maximale Lautstärke, ausblenden; Geräte mit PIN (z. B. Apple TV) koppeln.
 * **Lautsprecher-Gruppen** (im Reiter Lautsprecher, unter den Lautsprechern): beliebig viele Gruppen anlegen, umbenennen, Mitglieder ändern, löschen. Eine Gruppe schaltet genau ihre Lautsprecher ein und alle anderen aus.
-* **Equalizer:** 6 Bänder (60 Hz, 150 Hz, 400 Hz, 1 kHz, 2,4 kHz, 15 kHz, je ±12 dB) und Voreinstellungen wie in der Spotify-App (Akustik, Bass-Booster, Klassik, Rock, Gesangs-Booster …). Punkte der Kurve ziehen (oder mit den Pfeiltasten verstellen) – die Änderung ist sofort auf allen Lautsprechern zu hören, ohne Unterbrechung. Bei Anhebungen wird die Lautstärke automatisch etwas zurückgenommen, damit nichts übersteuert.
+* **Equalizer:** 6 Bänder (60 Hz, 150 Hz, 400 Hz, 1 kHz, 2,4 kHz, 15 kHz, je ±12 dB) und Voreinstellungen wie in der Spotify-App (Akustik, Bass-Booster, Klassik, Rock, Gesangs-Booster …). Punkte der Kurve ziehen (oder mit den Pfeiltasten verstellen) – die Änderung ist sofort auf allen Lautsprechern zu hören, ohne Unterbrechung. Anhebungen machen den Rest nicht leiser: Nur Spitzen, die übersteuern würden, fängt ein unhörbarer Begrenzer (Limiter) ab.
 * **System:** Gerätename, Klangqualität und Lautstärke-Normalisierung des Spotify-Empfängers (beim Speichern startet nur der Empfänger kurz neu), Status der Home-Assistant-Integration, gemessene Audio-Verzögerung, API-Token, Netzwerkbericht.
 
 Abgespielt wird über die Player-Kachel bzw. die Home-Assistant-Entitäten.

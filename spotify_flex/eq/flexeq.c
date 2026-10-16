@@ -7,8 +7,12 @@
  * CONTROL_FILE holds one line "enabled g1 g2 g3 g4 g5 g6" (gains in dB, -12..12) and is
  * re-read whenever it changes - new settings fade in within a fraction of a second,
  * without interrupting playback. Bands (peaking filters, like the Spotify app):
- * 60 Hz, 150 Hz, 400 Hz, 1 kHz, 2.4 kHz, 15 kHz. Boosts get automatic headroom plus a
- * soft limiter, so they do not clip.
+ * 60 Hz, 150 Hz, 400 Hz, 1 kHz, 2.4 kHz, 15 kHz.
+ *
+ * Loudness: boosts are NOT paid for by turning everything down (that made voices quieter).
+ * Only the part of the curve above ALLOW_DB is taken off; peaks that would still clip are
+ * caught by a look-ahead peak limiter (5.8 ms) that lowers the gain just before the peak
+ * and releases smoothly - transparent instead of distorting.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -27,7 +31,9 @@
 #define CH 2
 #define FRAMES 512
 #define STEP_DB 0.35      /* max gain change per block (~11.6 ms) -> smooth fades */
-#define ALLOW_DB 2.0      /* boost above this (peak of the whole curve) is taken off the input */
+#define ALLOW_DB 6.0      /* only boost above this (peak of the whole curve) is taken off the input */
+#define LA 256            /* limiter look-ahead in frames (5.8 ms) */
+#define THR 0.944         /* limiter ceiling: -0.5 dBFS */
 
 static const double FREQ[NB] = {60, 150, 400, 1000, 2400, 15000};
 static const double Q[NB] = {0.8, 1.0, 1.0, 1.0, 1.0, 0.8};
@@ -131,27 +137,58 @@ static int step_gains(void) {
     return moved;
 }
 
-static inline double soft(double x) {   /* transparent below -1 dBFS, smooth limit above */
-    const double k = 0.89;
-    double a = fabs(x);
-    if (a <= k) return x;
-    double y = k + (1 - k) * tanh((a - k) / (1 - k));
-    return x < 0 ? -y : y;
+/* --- look-ahead limiter: delay line + sliding minimum of the required gain --- */
+#define RING LA                         /* slot nfr % LA holds frame nfr - LA */
+#define DQ (LA + 2)
+static double dl[RING][CH];             /* delay line */
+static long nfr;                         /* frames pushed so far */
+static long dq_i[DQ]; static double dq_v[DQ]; static int dq_h, dq_n;
+static double gs = 1.0;                  /* smoothed limiter gain */
+static double a_att, a_rel;
+
+static void limiter_reset(void) {
+    memset(dl, 0, sizeof dl); nfr = 0; dq_h = dq_n = 0; gs = 1.0;
 }
 
-static void process(short *pcm, int frames) {
+static void dq_push(long i, double v) {   /* monotonic deque: front = minimum of the window */
+    while (dq_n && dq_v[(dq_h + dq_n - 1) % DQ] >= v) dq_n--;
+    int at = (dq_h + dq_n) % DQ;
+    dq_i[at] = i; dq_v[at] = v; dq_n++;
+    while (dq_i[dq_h] < i - LA) { dq_h = (dq_h + 1) % DQ; dq_n--; }
+}
+
+/* Filters `frames` frames in place; output is the input delayed by LA frames. */
+static void process(short *pcm, int frames, int eq_on) {
     for (int f = 0; f < frames; f++) {
+        double x[CH], peak = 0;
         for (int c = 0; c < CH; c++) {
-            double x = pcm[f * CH + c] / 32768.0 * pre;
-            for (int i = 0; i < NB; i++) {
-                coef_t *k = &co[i]; state_t *s = &st[c][i];
-                double y = k->b0 * x + s->z1;
-                s->z1 = k->b1 * x - k->a1 * y + s->z2;
-                s->z2 = k->b2 * x - k->a2 * y;
-                x = y;
+            double v = pcm[f * CH + c] / 32768.0;
+            if (eq_on) {
+                v *= pre;
+                for (int i = 0; i < NB; i++) {
+                    coef_t *k = &co[i]; state_t *s = &st[c][i];
+                    double y = k->b0 * v + s->z1;
+                    s->z1 = k->b1 * v - k->a1 * y + s->z2;
+                    s->z2 = k->b2 * v - k->a2 * y;
+                    v = y;
+                }
             }
-            x = soft(x) * 32767.0;
-            pcm[f * CH + c] = (short)lrint(x > 32767 ? 32767 : x < -32768 ? -32768 : x);
+            x[c] = v;
+            if (fabs(v) > peak) peak = fabs(v);
+        }
+        double need = (eq_on && peak > THR) ? THR / peak : 1.0;
+        int w = (int)(nfr % RING);
+        double out[CH];
+        for (int c = 0; c < CH; c++) { out[c] = dl[w][c]; dl[w][c] = x[c]; }  /* slot w held frame nfr-LA */
+        dq_push(nfr, need);
+        nfr++;
+        double wmin = dq_v[dq_h];
+        gs += (wmin - gs) * (wmin < gs ? a_att : a_rel);
+        if (gs > 0.999999) gs = 1.0;
+        if (gs > wmin && wmin < 1.0 && dq_i[dq_h] == nfr - 1 - LA) gs = wmin;  /* never late at the peak */
+        for (int c = 0; c < CH; c++) {
+            double y = gs == 1.0 ? out[c] * 32768.0 : out[c] * gs * 32768.0;
+            pcm[f * CH + c] = (short)lrint(y > 32767 ? 32767 : y < -32768 ? -32768 : y);
         }
     }
 }
@@ -183,6 +220,8 @@ int main(int argc, char **argv) {
     if (argc != 4) { fprintf(stderr, "usage: flex-eq IN_FIFO OUT_FIFO CONTROL_FILE\n"); return 2; }
     signal(SIGPIPE, SIG_IGN);
     setvbuf(stderr, NULL, _IOLBF, 0);
+    a_att = 1.0 - exp(-1.0 / (LA / 5.0));          /* reaches the target within the look-ahead */
+    a_rel = 1.0 - exp(-1.0 / (0.25 * RATE));        /* 250 ms release */
     read_control(argv[3]);
     memcpy(cur, target, sizeof cur);
     redesign();
@@ -196,6 +235,7 @@ int main(int argc, char **argv) {
         fcntl(in, F_SETPIPE_SZ, 4096);      /* keep the extra buffering (= delay) tiny */
         int out = open_out(argv[2]);        /* mirror the writer: open/close with the input */
         memset(st, 0, sizeof st);
+        limiter_reset();
         size_t have = 0;
         double checked = 0;
         for (;;) {
@@ -208,11 +248,10 @@ int main(int argc, char **argv) {
             double t = now();
             if (t - checked > 0.1) { read_control(argv[3]); checked = t; }
             if (step_gains()) redesign();
-            if (flat()) was_flat = 1;
-            else {
-                if (was_flat) { memset(st, 0, sizeof st); was_flat = 0; }
-                process(pcm, (int)frames);
-            }
+            int eq_on = !flat();
+            if (!eq_on) was_flat = 1;
+            else if (was_flat) { memset(st, 0, sizeof st); was_flat = 0; }
+            process(pcm, (int)frames, eq_on);
             size_t bytes = frames * CH * 2;
             if (write_all(out, buf, bytes) < 0) {
                 fprintf(stderr, "[flex-eq] output closed (%s) - reopening\n", strerror(errno));
@@ -222,6 +261,11 @@ int main(int argc, char **argv) {
             memmove(buf, buf + bytes, have - bytes);
             have -= bytes;
         }
+        /* flush the look-ahead so the end of the stream is not cut off */
+        static short tail[LA * CH];
+        memset(tail, 0, sizeof tail);
+        process(tail, LA, !flat());
+        write_all(out, (const char *)tail, sizeof tail);
         close(in);
         close(out);
     }

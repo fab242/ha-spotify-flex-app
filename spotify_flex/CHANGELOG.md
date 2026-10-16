@@ -155,3 +155,7 @@
 
 - Player-Kachel: Akzentfarbe (aktive Knöpfe, Fortschritts- und Lautstärkebalken, Mitsing-Punkt, Equalizer) passt sich dem Cover an – kräftigster Cover-Farbton, hell auf dunklem und dunkel auf hellem Hintergrund. Ohne Cover bleibt sie grün.
 - Neumorph-Schatten ohne Cover wieder korrekt.
+
+## 1.8.2
+
+- Player-Kachel: bessere Lesbarkeit. Mittelhelle Cover-Hintergründe werden leicht aufgehellt (dunkle Schrift) bzw. abgedunkelt (helle Schrift), statt im unlesbaren Mittelbereich zu landen. Fenster (Equalizer, Mediathek, Warteschlange, Lautsprecher, Timer), Menüs und Meldungen haben immer eine helle, leicht in Cover-Farbe getönte Fläche mit dunkler Schrift.

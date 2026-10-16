@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.7.5";
+const CARD_VERSION = "1.7.6";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -735,7 +735,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
   _tint(proxyUrl, directUrl) {
     const token = (this._tintToken = (this._tintToken || 0) + 1);
     const white = () => {                   // kein Cover: Hintergrund bleibt weiß
-      ["--sf-bg", "--sf-hi", "--sf-lo", "--sf-lo2", "--acc"].forEach((v) => this.style.removeProperty(v));
+      ["--sf-bg", "--sf-hi", "--sf-lo", "--sf-lo2", "--acc", "--acc-light", "--sheet-tint"].forEach((v) => this.style.removeProperty(v));
       this.classList.remove("on-dark");
       this._setArt(null);
     };
@@ -760,28 +760,31 @@ class SpotifyFlexFlowCard extends HTMLElement {
   _applyArt(url, avg) {
     const rgb = avg || [200, 205, 212];
     const lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
-    // heller Schleier: dunkle Cover werden so weit aufgehellt, dass dunkle Schrift lesbar bleibt
-    // kräftig: nur wenig aufhellen; sehr dunkle Cover bleiben dunkel und bekommen helle Schrift
-    const veil = Math.max(0, Math.min(0.32, (0.5 - lum) / (1 - lum)));
-    const mix = rgb.map((v) => Math.round(v + (255 - v) * veil));
-    const dark = (0.2126 * mix[0] + 0.7152 * mix[1] + 0.0722 * mix[2]) / 255 < 0.5;
+    // Kontrast sichern: mittlere Helligkeit (weder hell noch dunkel) ist unlesbar. Helle Cover werden
+    // leicht aufgehellt (dunkle Schrift), dunkle leicht abgedunkelt (helle Schrift) - Farben bleiben kräftig.
+    const dark = lum < 0.42;
+    const veil = dark ? Math.max(0, Math.min(0.5, 1 - 0.3 / Math.max(lum, 0.01))) : Math.max(0, Math.min(0.55, (0.66 - lum) / (1 - lum)));
+    const mix = rgb.map((v) => Math.round(dark ? v * (1 - veil) : v + (255 - v) * veil));
     this.classList.toggle("on-dark", dark);
     // Akzentfarbe (aktive Knöpfe, Fortschritt, Lautstärke, Punkt): kräftigster Cover-Farbton,
     // so hell bzw. dunkel, dass sie sich vom Hintergrund abhebt
     const avgHsl = rgbHsl(rgb);
     const viv = rgb.vivid || (avgHsl[1] >= 6 ? [avgHsl[0], 0.5] : null);   // blasse Cover: Farbton des Mittelwerts
-    this.style.setProperty("--acc", viv ? (dark ? `hsl(${viv[0]} 100% 80%)` : `hsl(${viv[0]} 85% 30%)`) : (dark ? "#ffffff" : "#1d2a39"));
-    const [h, S, L] = rgbHsl(mix);
+    const accLight = viv ? `hsl(${viv[0]} 85% 30%)` : "#1d2a39";            // für helle Flächen (auch Fenster)
     const st = this.style;
+    st.setProperty("--acc", dark ? (viv ? `hsl(${viv[0]} 100% 80%)` : "#ffffff") : accLight);
+    st.setProperty("--acc-light", accLight);
+    const [h, S, L] = rgbHsl(mix);
+    st.setProperty("--sheet-tint", `hsl(${h} ${S}% ${L}%)`);
     st.setProperty("--sf-bg", `hsl(${h} ${S}% ${L}%)`);
     st.setProperty("--sf-hi", `hsl(${h} ${S}% ${Math.min(97, L + (dark ? 7 : 9))}%)`);
     st.setProperty("--sf-lo", `hsl(${h} ${Math.round(S * 0.8)}% ${Math.max(2, L - (dark ? 9 : 13))}%)`);
     st.setProperty("--sf-lo2", `hsl(${h} ${Math.round(S * 0.75)}% ${Math.max(0, L - (dark ? 13 : 19))}%)`);
-    this._setArt(url, veil);
+    this._setArt(url, veil, dark);
   }
 
   /* zwei Ebenen: das neue Cover wird weich über das alte geblendet */
-  _setArt(url, veil = 0.5) {
+  _setArt(url, veil = 0.5, dark = false) {
     const layers = this.shadowRoot?.querySelectorAll(".bgfx i");
     if (!layers || layers.length < 2) return;
     this._bgLayer = this._bgLayer ? 0 : 1;
@@ -789,6 +792,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
     if (url) {
       on.style.backgroundImage = `url(${JSON.stringify(url)})`;
       on.style.setProperty("--veil", String(veil));
+      on.style.setProperty("--veil-rgb", dark ? "0,0,0" : "255,255,255");
     }
     on.classList.toggle("on", !!url);
     off.classList.remove("on");
@@ -1363,7 +1367,10 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:20p
 /* dunkler, kräftiger Hintergrund: helle Schrift */
 :host(.on-dark) { --ink:#f3f6f9; --ink2:#e3e8ee; --muted:#c9d1da; --ink-strong:#ffffff; --ink-dim:rgba(255,255,255,.62); }
 :host(.on-dark) .lyric-line { opacity:.55; } :host(.on-dark) .lyric-line.current { opacity:1; }
-.bgfx i::after { content:""; position:absolute; inset:0; background:rgba(255,255,255,var(--veil,.5)); }
+.bgfx i::after { content:""; position:absolute; inset:0; background:rgba(var(--veil-rgb,255,255,255),var(--veil,.5)); }
+/* Fenster, Menüs, Meldungen: immer helle, gut lesbare Fläche (leicht in Cover-Farbe getönt) */
+.sheet, .menu, .toast { --sf-bg:color-mix(in srgb,var(--sheet-tint,#f4f8fc) 18%,#f6f8fb); --sf-hi:#ffffff; --sf-lo:#d0d7df; --sf-lo2:#bfc8d2;
+  --sf-ctl:var(--sf-bg); --ink:#283443; --ink2:#445265; --muted:#5f6d7e; --ink-strong:#172b40; --ink-dim:#7b8a9c; --acc:var(--acc-light,#1e9e55); color:var(--ink); }
 .bgfx i.on { opacity:1; }
 .surface.loading > :not(.toast), .surface:not(.ready) > :not(.toast) { visibility:hidden; }
 .surface.narrow { height:auto; min-height:0; }

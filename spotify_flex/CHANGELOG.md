@@ -141,3 +141,7 @@
 ## 1.7.8
 
 - Player-Kachel: Cover-Hintergrund kräftiger (stärkere Sättigung, dünnerer heller Schleier; nur sehr dunkle Cover werden stärker aufgehellt).
+
+## 1.7.9
+
+- Player-Kachel: Cover-Hintergrund deutlich kräftiger (kaum noch Aufhellung). Bei dunklen Covern wird der Hintergrund dunkel und Schrift/Symbole schalten automatisch auf Hell.

@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.7.2";
+const CARD_VERSION = "1.7.3";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -723,6 +723,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const token = (this._tintToken = (this._tintToken || 0) + 1);
     if (!directUrl) {                       // kein Cover: weiß
       ["--sf-bg", "--sf-hi", "--sf-lo", "--sf-lo2"].forEach((v) => this.style.removeProperty(v));
+      this.classList.remove("on-dark");
       this._setArt(null);
       return;
     }
@@ -744,14 +745,17 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const rgb = avg || [200, 205, 212];
     const lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
     // heller Schleier: dunkle Cover werden so weit aufgehellt, dass dunkle Schrift lesbar bleibt
-    const veil = Math.max(0.12, Math.min(0.66, (0.7 - lum) / (1 - lum)));
+    // kräftig: nur wenig aufhellen; sehr dunkle Cover bleiben dunkel und bekommen helle Schrift
+    const veil = Math.max(0, Math.min(0.32, (0.5 - lum) / (1 - lum)));
     const mix = rgb.map((v) => Math.round(v + (255 - v) * veil));
+    const dark = (0.2126 * mix[0] + 0.7152 * mix[1] + 0.0722 * mix[2]) / 255 < 0.5;
+    this.classList.toggle("on-dark", dark);
     const [h, S, L] = rgbHsl(mix);
     const st = this.style;
     st.setProperty("--sf-bg", `hsl(${h} ${S}% ${L}%)`);
-    st.setProperty("--sf-hi", `hsl(${h} ${S}% ${Math.min(97, L + 9)}%)`);
-    st.setProperty("--sf-lo", `hsl(${h} ${Math.round(S * 0.8)}% ${L - 13}%)`);
-    st.setProperty("--sf-lo2", `hsl(${h} ${Math.round(S * 0.75)}% ${L - 19}%)`);
+    st.setProperty("--sf-hi", `hsl(${h} ${S}% ${Math.min(97, L + (dark ? 7 : 9))}%)`);
+    st.setProperty("--sf-lo", `hsl(${h} ${Math.round(S * 0.8)}% ${Math.max(2, L - (dark ? 9 : 13))}%)`);
+    st.setProperty("--sf-lo2", `hsl(${h} ${Math.round(S * 0.75)}% ${Math.max(0, L - (dark ? 13 : 19))}%)`);
     this._setArt(url, veil);
   }
 
@@ -1318,7 +1322,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
 }
 
 const CSS = `
-:host { --sf-ctl:color-mix(in srgb,var(--sf-bg) 45%,transparent); --sf-bg:#f4f8fc; --ink:#283443; --ink2:#445265; --muted:#697789; --sf-hi:#ffffff; --sf-lo:#d4dce4; --sf-lo2:var(--sf-lo2); --acc:#1e9e55;
+:host { --ink-strong:#172b40; --ink-dim:#7b8a9c; --sf-ctl:color-mix(in srgb,var(--sf-bg) 45%,transparent); --sf-bg:#f4f8fc; --ink:#283443; --ink2:#445265; --muted:#697789; --sf-hi:#ffffff; --sf-lo:#d4dce4; --sf-lo2:var(--sf-lo2); --acc:#1e9e55;
   transition:--sf-bg .9s ease,--sf-hi .9s ease,--sf-lo .9s ease,--sf-lo2 .9s ease;
   --raise:-4px -4px 9px var(--sf-hi),4px 4px 9px var(--sf-lo); --raise-l:-6px -6px 14px var(--sf-hi),7px 8px 16px var(--sf-lo2);
   --inset:inset 4px 4px 8px var(--sf-lo),inset -4px -4px 8px var(--sf-hi); display:block; }
@@ -1334,7 +1338,10 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:20p
 /* Cover-Farbverlauf: bündig über die ganze Kachel, zwei Ebenen zum Überblenden */
 .surface > .bgfx { position:absolute; inset:0; z-index:-1; pointer-events:none; grid-area:auto !important; visibility:visible !important; border-radius:inherit; overflow:hidden; }
 .bgfx i { position:absolute; inset:-60px; opacity:0; transition:opacity 1.1s ease; background:center/cover no-repeat;
-  filter:blur(46px) saturate(2.1) brightness(1.08); transform:scale(1.15); }
+  filter:blur(40px) saturate(2.6) brightness(1.05); transform:scale(1.15); }
+/* dunkler, kräftiger Hintergrund: helle Schrift */
+:host(.on-dark) { --ink:#f3f6f9; --ink2:#e3e8ee; --muted:#c9d1da; --ink-strong:#ffffff; --ink-dim:rgba(255,255,255,.62); }
+:host(.on-dark) .lyric-line { opacity:.55; } :host(.on-dark) .lyric-line.current { opacity:1; }
 .bgfx i::after { content:""; position:absolute; inset:0; background:rgba(255,255,255,var(--veil,.5)); }
 .bgfx i.on { opacity:1; }
 .surface.loading > :not(.toast), .surface:not(.ready) > :not(.toast) { visibility:hidden; }
@@ -1362,7 +1369,7 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:20p
 .surface:not(.wide) .side { display:none; }
 .caption { display:flex; align-items:center; justify-content:center; gap:20px; width:min(100%,880px); min-width:0; padding-bottom:4px; }
 .copy { flex:1 1 0; min-width:0; max-width:490px; }
-.title { font-size:1.45rem; font-weight:750; letter-spacing:-.01em; color:#1d2a39; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.title { font-size:1.45rem; font-weight:750; letter-spacing:-.01em; color:var(--ink-strong); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sub { margin-top:2px; font-size:.95rem; font-weight:500; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .actions { display:flex; gap:10px; flex:none; }
 .nb { display:inline-flex; align-items:center; justify-content:center; width:48px; height:48px; border-radius:50%;
@@ -1372,7 +1379,7 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:20p
 .nb:disabled { opacity:.45; cursor:default; }
 .nb.sm { width:40px; height:40px; } .nb.sm svg { width:20px; height:20px; }
 .nb.xs { width:32px; height:32px; } .nb.xs svg { width:18px; height:18px; }
-.nb.main { width:76px; height:76px; box-shadow:var(--raise-l); color:#1d2a39; }
+.nb.main { width:76px; height:76px; box-shadow:var(--raise-l); color:var(--ink-strong); }
 .nb.main svg { width:34px; height:34px; }
 .nb.main:active { box-shadow:var(--inset); }
 .progress { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; width:min(100%,860px); justify-self:center; }
@@ -1403,15 +1410,15 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
 .lyric-line { padding:9px 2px 7px; opacity:.4; font-weight:650; transform-origin:0 50%;
   transition:opacity .6s ease,color .6s ease,transform .6s cubic-bezier(.22,.8,.3,1); }
 .lyric-line .w { transition:color .35s ease; }
-.lyric-line.current .w { color:#7b8a9c; }
-.lyric-line.current .w.sung { color:#172b40; }
+.lyric-line.current .w { color:var(--ink-dim); }
+.lyric-line.current .w.sung { color:var(--ink-strong); }
 .ball { position:absolute; left:0; top:0; z-index:2; width:10px; height:10px; border-radius:50%; background:var(--acc);
   box-shadow:0 2px 5px rgba(30,158,85,.35); opacity:0; transition:opacity .2s; pointer-events:none; will-change:transform; }
 .ball.on { opacity:1; }
 .lyrics-bar { display:flex; justify-content:center; padding:6px 0 2px; }
 .lyrics-bar .offset { gap:6px; }
 .lyric-line.past { opacity:.55; }
-.lyric-line.current { opacity:1; color:#172b40; transform:scale(1.035); }
+.lyric-line.current { opacity:1; color:var(--ink-strong); transform:scale(1.035); }
 .lyrics-copy .plain { white-space:pre-line; opacity:.8; }
 .lmsg { color:var(--muted); font-size:.9rem; text-align:center; padding:18px 8px; margin:0; }
 .lmsg.err { color:#b42318; }

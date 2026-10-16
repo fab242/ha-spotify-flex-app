@@ -384,11 +384,21 @@ def build_app() -> web.Application:
     # ---- static UI
     @r.get("/")
     async def index(_request):
-        resp = web.FileResponse(STATIC / "index.html")
-        resp.headers["Cache-Control"] = "no-store"
-        return resp
+        # version in the asset URLs: after an update the browser must not keep old CSS/JS
+        html = (STATIC / "index.html").read_text(encoding="utf-8")
+        html = html.replace('static/style.css"', f'static/style.css?v={VERSION}"') \
+                   .replace('static/app.js"', f'static/app.js?v={VERSION}"')
+        return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-store"})
 
-    r.static("/static", STATIC)
+    @r.get("/static/{name}")
+    async def static_file(request):
+        name = request.match_info["name"]
+        path = (STATIC / name).resolve()
+        if path.parent != STATIC.resolve() or not path.is_file():
+            raise web.HTTPNotFound()
+        resp = web.FileResponse(path)
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp
 
     # ---- live updates
     @r.get("/ws")

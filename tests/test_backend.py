@@ -108,7 +108,11 @@ def test_backend_flow(tmp_path, monkeypatch):
             token = (tmp_path / "api_token").read_text()
             async with aiohttp.ClientSession(headers={"Authorization": f"Bearer {token}"}) as s:
                 async with s.get(base) as r:
-                    assert r.status == 200 and "Spotify Flex" in await r.text()
+                    html = await r.text()
+                    assert r.status == 200 and "Spotify Flex" in html
+                    assert f"static/app.js?v={const.VERSION}" in html and f"static/style.css?v={const.VERSION}" in html
+                async with s.get(base + "static/../flex/server.py") as r:
+                    assert r.status == 404
                 async with s.get(base + "static/app.js") as r:
                     assert r.status == 200
                 async with s.get(base + "api/state") as r:

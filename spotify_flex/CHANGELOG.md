@@ -83,3 +83,7 @@
 - Lautsprecher konfigurieren: Anzeigename, Lautstärke beim Einschalten, maximale Lautstärke, ausblenden, Koppeln per PIN (z. B. Apple TV).
 - Gruppen anlegen, umbenennen, Mitglieder ändern, löschen (beliebig viele).
 - Integration: Namensänderungen benennen auch das Gerät in Home Assistant um.
+
+## 1.6.1
+
+- Einstellungsseite: Gestaltung und Programm werden nach einem Update nicht mehr aus dem Browser-Zwischenspeicher geladen (Seite blieb sonst leer im alten Design).

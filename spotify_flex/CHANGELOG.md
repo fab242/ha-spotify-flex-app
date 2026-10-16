@@ -129,3 +129,7 @@
 ## 1.7.5
 
 - Player-Kachel: Hintergrund färbt sich passend zum Cover des laufenden Titels (zarter Farbton der prägenden Cover-Farbe, weicher Übergang beim Titelwechsel; Neumorph-Schatten passen sich an). Ohne Cover bleibt er weiß, bei schwarz-weißen Covern hellgrau.
+
+## 1.7.6
+
+- Player-Kachel: Hintergrund als **Farbverlauf aus den Cover-Farben** (bis zu drei prägende Farbtöne, bündig über die ganze Kachel, weiches Überblenden beim Titelwechsel). Knöpfe und Regler sind leicht durchscheinend, damit der Verlauf sichtbar bleibt. Ohne Cover weiß.

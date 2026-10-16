@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.7.0";
+const CARD_VERSION = "1.7.1";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -55,9 +55,10 @@ const fmt = (s) => {
   return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
 };
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (_) { return d; } };
-/* prägende Farbe eines Covers: Farbton mit dem meisten "Gewicht" (Sättigung × Fläche), sonst Grau */
-function coverColor(img) {
-  const n = 40, c = document.createElement("canvas");
+/* Farbpalette eines Covers: bis zu drei prägende, voneinander verschiedene Farbtöne
+   (Gewicht = Sättigung × Fläche, mittelhelle Farben zählen mehr). Graustufen-Cover -> []. */
+function coverPalette(img) {
+  const n = 48, c = document.createElement("canvas");
   c.width = n; c.height = n;
   const ctx = c.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, n, n);
@@ -67,21 +68,25 @@ function coverColor(img) {
   for (let i = 0; i < d.length; i += 4) {
     const r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
     const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, ch = mx - mn;
-    if (l < 0.08 || l > 0.95) continue;                       // fast schwarz/weiß zählt nicht
-    const sat = ch === 0 ? 0 : ch / (1 - Math.abs(2 * l - 1));
-    let h = 0;
-    if (ch) h = mx === r ? ((g - b) / ch) % 6 : mx === g ? (b - r) / ch + 2 : (r - g) / ch + 4;
-    h = (h * 60 + 360) % 360;
-    const w = sat * (1 - Math.abs(l - 0.5));                   // kräftige, mittelhelle Farben zählen mehr
+    if (l < 0.08 || l > 0.95) continue;
     total += 1;
+    const sat = ch === 0 ? 0 : ch / (1 - Math.abs(2 * l - 1));
     if (sat < 0.1) continue;
+    let h = mx === r ? ((g - b) / ch) % 6 : mx === g ? (b - r) / ch + 2 : (r - g) / ch + 4;
+    h = (h * 60 + 360) % 360;
+    const w = sat * (1 - Math.abs(l - 0.5));
     const bin = bins[Math.floor(h / 15) % 24];
     bin.w += w; bin.x += Math.cos(h * Math.PI / 180) * w; bin.y += Math.sin(h * Math.PI / 180) * w; bin.s += sat * w;
   }
-  const best = bins.reduce((a, b) => (b.w > a.w ? b : a));
-  if (!total || best.w < total * 0.008) return [215, 0];        // kaum Farbe im Bild -> neutrales Grau
-  const hue = Math.round((Math.atan2(best.y, best.x) * 180 / Math.PI + 360) % 360);
-  return [hue, best.s / best.w];
+  const cand = bins.filter((b) => b.w > 0).map((b) => ({ w: b.w, s: b.s / b.w, h: (Math.atan2(b.y, b.x) * 180 / Math.PI + 360) % 360 }))
+    .sort((a, b) => b.w - a.w);
+  if (!total || !cand.length || cand[0].w < total * 0.008) return [];
+  const pick = [cand[0]];
+  for (const c2 of cand.slice(1)) {
+    if (pick.length >= 3 || c2.w < cand[0].w * 0.12) break;
+    if (pick.every((p) => Math.min(Math.abs(p.h - c2.h), 360 - Math.abs(p.h - c2.h)) >= 30)) pick.push(c2);
+  }
+  return pick.map((p) => [Math.round(p.h), p.s]);
 }
 
 try {  // Farbwechsel weich überblenden
@@ -318,7 +323,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const h = Number(this._config.height) || 600;
     this.shadowRoot.innerHTML = `<style>${CSS}</style>
       <ha-card class="sf" style="--h:${h}px">
-        <div class="surface loading">
+        <div class="surface loading"><div class="bgfx" aria-hidden="true"><i></i><i></i></div>
           <aside class="lyrics-panel" aria-label="Liedtext">
             <div class="lyrics-copy"></div>
             <div class="lyrics-bar"></div>
@@ -723,7 +728,11 @@ class SpotifyFlexFlowCard extends HTMLElement {
   /* ----------------------------------------------- Hintergrund nach Cover-Farbe */
   _tint(proxyUrl, directUrl) {
     const token = (this._tintToken = (this._tintToken || 0) + 1);
-    const reset = () => { if (token === this._tintToken) ["--sf-bg", "--sf-hi", "--sf-lo", "--sf-lo2"].forEach((v) => this.style.removeProperty(v)); };
+    const reset = () => {
+      if (token !== this._tintToken) return;
+      ["--sf-bg", "--sf-hi", "--sf-lo", "--sf-lo2"].forEach((v) => this.style.removeProperty(v));
+      this._setGradient(null);   // kein Cover: weiß
+    };
     if (!directUrl) return reset();   // kein Cover: weiß
     const tryLoad = (urls) => {
       const url = urls.shift();
@@ -732,7 +741,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
       if (!url.startsWith("/") && !url.startsWith(location.origin)) im.crossOrigin = "anonymous";
       im.onload = () => {
         if (token !== this._tintToken) return;
-        try { this._applyTint(coverColor(im)); } catch (_) { tryLoad(urls); }  // Canvas gesperrt (CORS) -> nächste Quelle
+        try { this._applyTint(coverPalette(im)); } catch (_) { tryLoad(urls); }  // Canvas gesperrt (CORS) -> nächste Quelle
       };
       im.onerror = () => tryLoad(urls);
       im.src = url;
@@ -740,15 +749,40 @@ class SpotifyFlexFlowCard extends HTMLElement {
     tryLoad([proxyUrl, directUrl].filter(Boolean));
   }
 
-  _applyTint(c) {
-    if (!c) return;
-    const [h, sat] = c;
-    const S = sat < 0.1 ? 8 : Math.round(Math.min(62, 30 + sat * 55));   // Graustufen-Cover -> zartes Grau
+  _applyTint(pal) {
+    if (!pal) return;
+    const sat = (x) => Math.round(Math.min(72, 38 + x * 60));
+    let cols;
+    if (!pal.length) cols = [[215, 6, 86], [215, 4, 93], [215, 8, 80]];          // Graustufen-Cover: zartes Grau
+    else {
+      cols = pal.map(([h, s2], i) => [h, sat(s2), [80, 85, 76][i]]);
+      // nur ein Farbton im Cover: Verlauf aus hellen/dunkleren Stufen und leicht verschobenem Ton
+      if (cols.length === 1) cols.push([(cols[0][0] + 22) % 360, Math.max(25, cols[0][1] - 10), 88], [(cols[0][0] + 338) % 360, cols[0][1], 74]);
+      if (cols.length === 2) cols.push([cols[0][0], Math.max(25, cols[0][1] - 8), 88]);
+    }
+    const hsl = ([h, s2, l]) => `hsl(${h} ${s2}% ${l}%)`;
+    const [h, S] = cols[0];
     const st = this.style;
-    st.setProperty("--sf-bg", `hsl(${h} ${S}% 87%)`);
-    st.setProperty("--sf-hi", `hsl(${h} ${Math.min(100, S + 10)}% 95%)`);
-    st.setProperty("--sf-lo", `hsl(${h} ${Math.round(S * 0.7)}% 76%)`);
-    st.setProperty("--sf-lo2", `hsl(${h} ${Math.round(S * 0.65)}% 70%)`);
+    st.setProperty("--sf-bg", `hsl(${h} ${S}% 85%)`);
+    st.setProperty("--sf-hi", `hsl(${h} ${Math.min(100, S + 10)}% 94%)`);
+    st.setProperty("--sf-lo", `hsl(${h} ${Math.round(S * 0.7)}% 72%)`);
+    st.setProperty("--sf-lo2", `hsl(${h} ${Math.round(S * 0.65)}% 65%)`);
+    this._setGradient(`radial-gradient(120% 90% at 0% 0%, ${hsl(cols[0])} 0%, transparent 62%),
+      radial-gradient(90% 80% at 100% 0%, ${hsl(cols[1])} 0%, transparent 60%),
+      radial-gradient(110% 90% at 100% 100%, ${hsl(cols[2])} 0%, transparent 62%),
+      radial-gradient(90% 80% at 0% 100%, ${hsl(cols[1])} 0%, transparent 58%),
+      linear-gradient(135deg, ${hsl(cols[0])}, ${hsl(cols[2])})`);
+  }
+
+  /* Verlauf überblenden: zwei Ebenen, die neue wird weich eingeblendet */
+  _setGradient(css) {
+    const layers = this.shadowRoot?.querySelectorAll(".bgfx i");
+    if (!layers || layers.length < 2) return;
+    this._bgLayer = this._bgLayer ? 0 : 1;
+    const on = layers[this._bgLayer], off = layers[1 - this._bgLayer];
+    if (css) on.style.backgroundImage = css;
+    on.classList.toggle("on", !!css);
+    off.classList.remove("on");
   }
 
   /* ------------------------------------------------------------- input */
@@ -1300,7 +1334,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
 }
 
 const CSS = `
-:host { --sf-bg:#f4f8fc; --ink:#283443; --ink2:#445265; --muted:#697789; --sf-hi:#ffffff; --sf-lo:#d4dce4; --sf-lo2:var(--sf-lo2); --acc:#1e9e55;
+:host { --sf-ctl:color-mix(in srgb,var(--sf-bg) 45%,transparent); --sf-bg:#f4f8fc; --ink:#283443; --ink2:#445265; --muted:#697789; --sf-hi:#ffffff; --sf-lo:#d4dce4; --sf-lo2:var(--sf-lo2); --acc:#1e9e55;
   transition:--sf-bg .9s ease,--sf-hi .9s ease,--sf-lo .9s ease,--sf-lo2 .9s ease;
   --raise:-4px -4px 9px var(--sf-hi),4px 4px 9px var(--sf-lo); --raise-l:-6px -6px 14px var(--sf-hi),7px 8px 16px var(--sf-lo2);
   --inset:inset 4px 4px 8px var(--sf-lo),inset -4px -4px 8px var(--sf-hi); display:block; }
@@ -1312,7 +1346,11 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:20p
   box-shadow:-5px -5px 10px #ffffff, 6px 7px 14px #d2dbe4; }
 .surface { border-radius:20px; }
 .surface { position:relative; display:grid; grid-template-rows:auto 1fr auto auto auto; gap:10px; padding:12px 16px 14px;
-  min-height:420px; height:var(--h); background:var(--sf-bg); }
+  min-height:420px; height:var(--h); background:transparent; isolation:isolate; }
+/* Cover-Farbverlauf: bündig über die ganze Kachel, zwei Ebenen zum Überblenden */
+.surface > .bgfx { position:absolute; inset:0; z-index:-1; pointer-events:none; grid-area:auto !important; visibility:visible !important; border-radius:inherit; overflow:hidden; }
+.bgfx i { position:absolute; inset:0; opacity:0; transition:opacity 1.1s ease; }
+.bgfx i.on { opacity:1; }
 .surface.loading > :not(.toast), .surface:not(.ready) > :not(.toast) { visibility:hidden; }
 .surface.narrow { height:auto; min-height:0; }
 .top { display:flex; align-items:center; gap:10px; min-height:40px; z-index:2; }
@@ -1325,7 +1363,7 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:20p
 .hero { min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
 .flow { position:relative; display:flex; align-items:center; justify-content:center; gap:18px; width:100%; min-height:0; flex:1 1 auto; }
 .art { position:relative; height:min(100%,340px); aspect-ratio:1; max-width:78vw; border-radius:22px; overflow:hidden;
-  background:var(--sf-bg); box-shadow:var(--inset); display:grid; place-items:center; min-height:120px; }
+  background:var(--sf-ctl); box-shadow:var(--inset); display:grid; place-items:center; min-height:120px; }
 .art img { width:100%; height:100%; object-fit:cover; display:block; border-radius:22px; }
 .art img[hidden] { display:none; }
 .art .ph svg { width:56px; height:56px; color:#b9c3cf; }
@@ -1342,7 +1380,7 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:20p
 .sub { margin-top:2px; font-size:.95rem; font-weight:500; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .actions { display:flex; gap:10px; flex:none; }
 .nb { display:inline-flex; align-items:center; justify-content:center; width:48px; height:48px; border-radius:50%;
-  background:var(--sf-bg); box-shadow:var(--raise); color:var(--ink); transition:box-shadow .15s,color .15s; }
+  background:var(--sf-ctl); box-shadow:var(--raise); color:var(--ink); transition:box-shadow .15s,color .15s; }
 .nb:active, .nb.on { box-shadow:var(--inset); }
 .nb.on { color:var(--acc); }
 .nb:disabled { opacity:.45; cursor:default; }
@@ -1361,7 +1399,7 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:20p
 .volume { display:flex; align-items:center; justify-content:center; gap:10px; width:min(100%,560px); justify-self:center; }
 .volume input { flex:1; }
 .pct { min-width:44px; font-size:.82rem; color:var(--muted); font-variant-numeric:tabular-nums; text-align:right; }
-input[type=range] { -webkit-appearance:none; appearance:none; height:10px; border-radius:999px; background:var(--sf-bg); box-shadow:var(--inset);
+input[type=range] { -webkit-appearance:none; appearance:none; height:10px; border-radius:999px; background:var(--sf-ctl); box-shadow:var(--inset);
   background-image:linear-gradient(var(--acc),var(--acc)); background-size:var(--p,0%) 100%; background-repeat:no-repeat; outline:none; }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; height:20px; border-radius:50%; background:var(--sf-bg);
   box-shadow:-2px -2px 5px var(--sf-hi),2px 3px 6px var(--sf-lo2); cursor:pointer; }
@@ -1473,7 +1511,7 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
 .tab { flex:1 0 auto; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:9px 12px; border-radius:14px;
   font-size:.82rem; font-weight:600; color:var(--muted); white-space:nowrap; }
 .tab svg { width:18px; height:18px; }
-.tab.on { background:var(--sf-bg); box-shadow:var(--raise); color:var(--acc); }
+.tab.on { background:var(--sf-ctl); box-shadow:var(--raise); color:var(--acc); }
 .sheet:not(.wide-tabs) .tab span { display:inline; }
 .surface.narrow .tab span { display:none; }
 .search { display:flex; gap:10px; margin:0 0 10px; }

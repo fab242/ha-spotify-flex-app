@@ -16,6 +16,7 @@
   const cover = (a, b) => "data:image/svg+xml;utf8," + encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="300" height="300" fill="url(#g)"/><circle cx="150" cy="150" r="70" fill="rgba(255,255,255,.25)"/></svg>`);
   window.__covers = { now: cover("#2b5876", "#4e4376"), next: cover("#ee9ca7", "#ffdde1"), p1: cover("#11998e", "#38ef7d"), p2: cover("#fc5c7d", "#6a82fb") };
+  if (window.__coverOverride !== undefined) window.__covers.now = window.__coverOverride;  // Test: echtes Cover oder null
   const lrc = ["[00:00.00]Intro", "[00:05.00]Erste Zeile im Takt", "[00:10.00]Zweite Zeile, ein bisschen länger als die erste", "[00:15.00]Dritte Zeile", "[00:20.00]Refrain – alle singen mit", "[00:25.00]Noch eine Zeile", "[00:30.00]Und noch eine", "[00:35.00]Fast geschafft", "[00:40.00]Ende"].join("\n");
   const realFetch = window.fetch;
   window.fetch = async (url, opts) => {

@@ -125,3 +125,7 @@
 ## 1.7.4
 
 - Player-Kachel: in Playlists, Alben usw. neben „Alles abspielen“ jetzt auch **„Zufällig abspielen“** (startet mit einem zufälligen Titel, Zufallswiedergabe an). „Alles abspielen“ spielt in Reihenfolge.
+
+## 1.7.5
+
+- Player-Kachel: Hintergrund färbt sich passend zum Cover des laufenden Titels (zarter Farbton der prägenden Cover-Farbe, weicher Übergang beim Titelwechsel; Neumorph-Schatten passen sich an). Ohne Cover bleibt er weiß, bei schwarz-weißen Covern hellgrau.

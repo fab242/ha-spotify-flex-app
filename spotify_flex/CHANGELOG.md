@@ -117,3 +117,7 @@
 ## 1.7.2
 
 - Equalizer: Anhebungen (z. B. Bass-Booster) machen Stimmen und Mitten nicht mehr leiser. Statt die ganze Lautstärke um bis zu 5 dB abzusenken, fängt jetzt ein Look-ahead-Limiter (5,8 ms) nur die Spitzen ab, die übersteuern würden.
+
+## 1.7.3
+
+- Liedtext: flüssiger Zeilenwechsel – die Zeilen rollen weich weiter (eigene Ease-Animation statt Sprung), die aktuelle Zeile wird sanft hervorgehoben (kein Fettschrift-Sprung mehr), der Zeilenwechsel wird im Bildtakt statt alle 250 ms erkannt, und der springende Punkt hüpft am Zeilenende im Bogen zum ersten Wort der nächsten Zeile.

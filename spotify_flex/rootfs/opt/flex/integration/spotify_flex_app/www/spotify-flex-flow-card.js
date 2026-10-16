@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.6.0";
+const CARD_VERSION = "1.6.1";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -587,9 +587,26 @@ class SpotifyFlexFlowCard extends HTMLElement {
         row.classList.toggle("past", i < cur);
       });
       const row = box.querySelector(`.lyric-line[data-i="${cur}"]`);
-      if (row && box.clientHeight) box.scrollTo({ top: row.offsetTop - box.clientHeight / 2 + row.clientHeight / 2, behavior: force ? "auto" : "smooth" });
-      else if (cur < 0) box.scrollTo({ top: 0, behavior: force ? "auto" : "smooth" });
+      if (row && box.clientHeight) this._glide(box, row.offsetTop - box.clientHeight / 2 + row.clientHeight / 2, force);
+      else if (cur < 0) this._glide(box, 0, force);
     }
+  }
+
+  /* weiches Weiterrollen zur neuen Zeile (ease-in-out, ~0,7 s) */
+  _glide(box, top, instant = false) {
+    top = Math.max(0, Math.min(top, box.scrollHeight - box.clientHeight));
+    if (box._glide) cancelAnimationFrame(box._glide);
+    box._glide = null;
+    if (instant || Math.abs(top - box.scrollTop) < 1) { box.scrollTop = top; return; }
+    const from = box.scrollTop, dist = top - from, t0 = performance.now();
+    const dur = Math.min(900, 520 + Math.abs(dist) * 1.2);
+    const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / dur);
+      box.scrollTop = from + dist * ease(t);
+      box._glide = t < 1 ? requestAnimationFrame(step) : null;
+    };
+    box._glide = requestAnimationFrame(step);
   }
 
   /* springender Punkt (wie das Mitsing-Bällchen): landet auf jedem Wort, wenn es gesungen wird */
@@ -605,6 +622,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
       const playing = this._st?.state === "playing";
       let li = -1;
       for (let i = 0; i < L.lines.length; i++) { if (L.lines[i].t <= ms) li = i; else break; }
+      this._lyricTick();
       for (const box of boxes) this._placeBall(box, L, li, ms, playing);
       this._raf = requestAnimationFrame(step);
     };
@@ -616,17 +634,33 @@ class SpotifyFlexFlowCard extends HTMLElement {
     if (!ball) return;
     const line = L.lines[li];
     const row = li >= 0 ? box.querySelector(`.lyric-line[data-i="${li}"]`) : null;
-    if (!line || !row || ms > line.end + 700) { ball.classList.remove("on"); return; }
+    const nextLine = L.lines[li + 1];
+    const bridging = nextLine && nextLine.t - (line?.end ?? 0) < 4000;
+    if (!line || !row || (ms > line.end + 700 && !bridging)) { ball.classList.remove("on"); return; }
     const spans = row.querySelectorAll(".w");
     const words = line.words;
     let k = 0;
     for (let i = 0; i < words.length; i++) { if (words[i].t <= ms) k = i; else break; }
-    const pos = (span) => ({ x: span.offsetLeft + span.offsetWidth / 2, y: span.offsetTop });
+    // echte Bildschirmlage (berücksichtigt die Vergrößerung der aktuellen Zeile), in Box-Koordinaten
+    const br = box.getBoundingClientRect();
+    const pos = (span) => { const r = span.getBoundingClientRect(); return { x: r.left - br.left + box.scrollLeft + r.width / 2, y: r.top - br.top + box.scrollTop }; };
     const a = spans[k] ? pos(spans[k]) : null;
     if (!a) { ball.classList.remove("on"); return; }
-    const nextT = words[k + 1] ? words[k + 1].t : line.end;
-    const b = spans[k + 1] ? pos(spans[k + 1]) : null;
-    let p = (ms - words[k].t) / Math.max(120, nextT - words[k].t);
+    let nextT = words[k + 1] ? words[k + 1].t : line.end;
+    let startT = words[k].t;
+    let b = spans[k + 1] ? pos(spans[k + 1]) : null;
+    const nl = L.lines[li + 1];
+    if (!b && nl && nl.words?.length && nl.t - words[k].t < 4000) {
+      // letztes Wort: rechtzeitig zum ersten Wort der nächsten Zeile hinüberhüpfen
+      const first = box.querySelector(`.lyric-line[data-i="${li + 1}"] .w`);
+      if (first) {
+        const lastDur = Math.max(250, Math.min(line.end - words[k].t, nl.t - words[k].t));
+        const flight = Math.min(650, nl.t - words[k].t);
+        const leave = Math.max(words[k].t + Math.min(lastDur, 450), nl.t - flight);
+        if (ms >= leave) { b = pos(first); nextT = nl.t; startT = leave; }
+      }
+    }
+    let p = (ms - startT) / Math.max(120, nextT - startT);
     p = Math.max(0, Math.min(1, p));
     let x = a.x, y = a.y;
     let lift = 0;
@@ -635,6 +669,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
       y = a.y + (b.y - a.y) * p;
       const hop = Math.min(16, 7 + Math.abs(b.x - a.x) * 0.12);
       lift = hop * 4 * p * (1 - p);
+      if (b.y !== a.y) lift = Math.min(26, 12 + Math.abs(b.y - a.y) * 0.25) * 4 * p * (1 - p); // Zeilensprung: höherer Bogen
     } else {
       lift = 6 * 4 * p * (1 - p) * (p < 0.5 ? 1 : 0.4); // letzter Hüpfer auf dem letzten Wort
     }
@@ -1268,8 +1303,9 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
   -webkit-mask-image:linear-gradient(to bottom,transparent,#000 12%,#000 88%,transparent); mask-image:linear-gradient(to bottom,transparent,#000 12%,#000 88%,transparent); }
 .lyrics-copy::-webkit-scrollbar { display:none; }
 .lyrics-copy { position:relative; }
-.lyric-line { padding:9px 2px 7px; opacity:.4; transition:opacity .25s,color .25s,transform .25s; }
-.lyric-line .w { transition:color .15s; }
+.lyric-line { padding:9px 2px 7px; opacity:.4; font-weight:650; transform-origin:0 50%;
+  transition:opacity .6s ease,color .6s ease,transform .6s cubic-bezier(.22,.8,.3,1); }
+.lyric-line .w { transition:color .35s ease; }
 .lyric-line.current .w { color:#7b8a9c; }
 .lyric-line.current .w.sung { color:#172b40; }
 .ball { position:absolute; left:0; top:0; z-index:2; width:10px; height:10px; border-radius:50%; background:var(--acc);
@@ -1278,7 +1314,7 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
 .lyrics-bar { display:flex; justify-content:center; padding:6px 0 2px; }
 .lyrics-bar .offset { gap:6px; }
 .lyric-line.past { opacity:.55; }
-.lyric-line.current { opacity:1; color:#172b40; font-weight:750; }
+.lyric-line.current { opacity:1; color:#172b40; transform:scale(1.035); }
 .lyrics-copy .plain { white-space:pre-line; opacity:.8; }
 .lmsg { color:var(--muted); font-size:.9rem; text-align:center; padding:18px 8px; margin:0; }
 .lmsg.err { color:#b42318; }

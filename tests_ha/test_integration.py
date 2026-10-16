@@ -230,6 +230,9 @@ async def test_card_services(hass: HomeAssistant, fake: FakeApp) -> None:
         if path == "/api/library":
             fake.calls.append((method, path, body, params))
             return {"contains": [True]} if body["action"] == "contains" else {"ok": True}
+        if path == "/api/config/eq":
+            fake.calls.append((method, path, body, params))
+            return {"enabled": bool(body and body.get("enabled", True)), "preset": "rock", "gains": [4.5, 3, -1, -0.5, 2, 4]}
         if path == "/api/player/queue":
             fake.calls.append((method, path, body, params))
             return {"player": fake.state["player"]}
@@ -264,6 +267,16 @@ async def test_card_services(hass: HomeAssistant, fake: FakeApp) -> None:
         assert hass.states.get("media_player.spotify_flex_player").attributes["sleep_timer_ends"] == r["ends_at"]
         r = await hass.services.async_call(DOMAIN, "sleep_timer", {"minutes": 0}, blocking=True, return_response=True)
         assert r["ends_at"] is None
+
+        r = await hass.services.async_call(DOMAIN, "equalizer", {}, blocking=True, return_response=True)
+        assert r["preset"] == "rock" and ("GET", "/api/config/eq", None, None) in fake.calls
+        await hass.services.async_call(DOMAIN, "equalizer", {"preset": "rock"}, blocking=True, return_response=True)
+        assert ("PUT", "/api/config/eq", {"preset": "rock"}, None) in fake.calls
+        await hass.services.async_call(DOMAIN, "equalizer", {"enabled": False, "gains": [1, 2, 3, 4, 5, 6]},
+                                       blocking=True, return_response=True)
+        assert ("PUT", "/api/config/eq", {"enabled": False, "gains": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]}, None) in fake.calls
+        with pytest.raises(Exception):
+            await hass.services.async_call(DOMAIN, "equalizer", {"gains": [1, 2]}, blocking=True, return_response=True)
 
 
 async def test_card_is_served(hass: HomeAssistant, fake: FakeApp, hass_client) -> None:

@@ -57,7 +57,7 @@
     ],
   };
   const hass = {
-    states, entities, language: "de",
+    states, entities, language: "de", services: { spotify_flex_app: { equalizer: {} } },
     hassUrl: (p) => p,
     callService: async (domain, service, data) => { window.__calls.push([domain, service, data]); },
     callWS: async (msg) => {
@@ -75,6 +75,18 @@
         if (s === "search") return { response: { groups: [{ type: "track", items: [{ title: "Euphoria", subtitle: "Delerium", image: window.__covers.now, type: "track", uri: "spotify:track:T1", play_id: "spotify:track:T1" }] },
           { type: "artist", items: [{ title: "Delerium", subtitle: "", image: window.__covers.p2, type: "artist", uri: "spotify:artist:A1", browse_id: "flex:node:artist:A1@0", play_id: "flex:node:artist:A1@0#spotify:artist:A1" }] }] } };
         if (s === "sleep_timer") return { response: { ends_at: null } };
+        if (s === "equalizer") {
+          const presets = [["flat", "Flach", [0, 0, 0, 0, 0, 0]], ["acoustic", "Akustik", [3, 2.5, 0.5, 1, 2, 2.5]], ["bass_boost", "Bass-Booster", [6, 4, 1, 0, 0, 0]],
+            ["classical", "Klassik", [3, 2, -1, 0, 2, 3.5]], ["pop", "Pop", [-1, 1, 3.5, 3, 1, -1]], ["rock", "Rock", [4.5, 3, -1, -0.5, 2, 4]],
+            ["small_speakers", "Kleine Lautsprecher", [5, 4, 2, 0, -1, -3]], ["vocal", "Gesangs-Booster", [-2, -2, 1.5, 3.5, 3, 0]]]
+            .map(([id, name, gains]) => ({ id, name, gains }));
+          const eq = window.__eq = window.__eq || { enabled: false, preset: "flat", gains: [0, 0, 0, 0, 0, 0] };
+          const d = msg.service_data || {};
+          if (d.preset) { eq.preset = d.preset; eq.gains = presets.find((p) => p.id === d.preset).gains.slice(); eq.enabled = true; }
+          if (d.gains) { eq.gains = d.gains.slice(); const m = presets.find((p) => p.gains.join() === eq.gains.join()); eq.preset = m ? m.id : "custom"; }
+          if ("enabled" in d) eq.enabled = d.enabled;
+          return { response: { ...eq, gains: eq.gains.slice(), bands: [60, 150, 400, 1000, 2400, 15000], max: 12, presets } };
+        }
       }
       return {};
     },

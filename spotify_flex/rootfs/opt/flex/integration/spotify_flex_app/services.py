@@ -1,4 +1,4 @@
-"""Services with responses for the Spotify Flex player card (search, queue, like, sleep timer)."""
+"""Services with responses for the Spotify Flex player card (search, queue, like, sleep timer, equalizer)."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -118,6 +118,12 @@ def async_setup_services(hass: HomeAssistant) -> None:
         coordinator.async_update_listeners()
         return {"ends_at": coordinator.sleep_ends.isoformat() if coordinator.sleep_ends else None}
 
+    async def equalizer(call: ServiceCall) -> ServiceResponse:
+        changes = {k: call.data[k] for k in ("enabled", "preset", "gains") if k in call.data}
+        if changes:
+            return await _call(hass, "PUT", "/api/config/eq", changes)
+        return await _call(hass, "GET", "/api/config/eq")
+
     hass.services.async_register(DOMAIN, "search", search, vol.Schema({
         vol.Required("query"): vol.All(cv.string, vol.Length(min=1, max=200)),
         vol.Optional("types"): [vol.In(SEARCH_TYPES)],
@@ -129,6 +135,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, "like", like, vol.Schema({
         vol.Optional("action", default="status"): vol.In(("status", "save", "remove", "toggle")),
         vol.Optional("uri"): vol.All(cv.string, vol.Match(r"^spotify:[a-z]+:[A-Za-z0-9]+$")),
+    }), supports_response=SupportsResponse.OPTIONAL)
+    hass.services.async_register(DOMAIN, "equalizer", equalizer, vol.Schema({
+        vol.Optional("enabled"): cv.boolean,
+        vol.Optional("preset"): vol.All(cv.string, vol.Match(r"^[a-z_]{2,30}$")),
+        vol.Optional("gains"): vol.All([vol.All(vol.Coerce(float), vol.Range(min=-12, max=12))], vol.Length(min=6, max=6)),
     }), supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "sleep_timer", sleep_timer, vol.Schema({
         vol.Required("minutes"): vol.All(vol.Coerce(int), vol.Range(min=0, max=480)),

@@ -1,9 +1,9 @@
 /*
  * Spotify Flex Flow – Player-Kachel im Aufbau von HOMEii Flow, für die Spotify-Flex-App.
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
- * Suche, Warteschlange, Lieblingssongs, Sleep-Timer und Lautsprecher/Gruppen.
+ * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.5.2";
+const CARD_VERSION = "1.6.0";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -42,6 +42,7 @@ const P = {
 const STROKE = {
   lyrics: '<path d="M6 3h9l3 3v15H6zM15 3v4h3M9 11h6M9 15h6M9 19h4"/>',
   browse: '<path d="M3 5h13M3 10h13M3 15h9M20 7v10a2.5 2.5 0 1 1-2-2.45V9l4-1"/>',
+  eq: '<path d="M6 3v5M6 12v9M12 3v11M12 18v3M18 3v2M18 9v12"/><circle cx="6" cy="10" r="2"/><circle cx="12" cy="16" r="2"/><circle cx="18" cy="7" r="2"/>',
 };
 const svg = (name) => STROKE[name]
   ? `<svg viewBox="0 0 24 24" aria-hidden="true" class="st">${STROKE[name]}</svg>`
@@ -140,7 +141,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
     if (!/^media_player\./.test(this._config.entity)) throw new Error("entity muss ein media_player sein");
     this._ls = `sfflow:${this._config.entity}:`;
     this._s = {
-      sheet: null, lyricsOn: lsGet(this._ls + "lyrics", true), offset: lsGet(this._ls + "fine", null),
+      sheet: null, eq: null, eqDrag: null, lyricsOn: lsGet(this._ls + "lyrics", true), offset: lsGet(this._ls + "fine", null),
       lib: { tab: "playlists", stack: [], view: lsGet(this._ls + "view", "grid"), query: "" },
       liked: null, likedUri: null, lyrics: null, lyricsKey: null, prevArt: null, lastArt: null,
       nextArt: null, queueKey: null, busy: new Set(),
@@ -152,7 +153,11 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const first = !this._hass;
     this._hass = hass;
     if (!this.shadowRoot) { this.attachShadow({ mode: "open" }); this._build(); }
-    if (first) this._observe();
+    if (first) {
+      this._observe();
+      // Equalizer-Status für den Button (grün = an); ältere Integration ohne Dienst: still ignorieren
+      if (hass.services?.[DOMAIN]?.equalizer) this._resp("equalizer").then((r) => { if (!this._s.eq) this._s.eq = r; this._eqMark(); }).catch(() => {});
+    }
     this._update();
   }
 
@@ -301,6 +306,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
                 <button class="nb sm" data-a="like" aria-label="Lieblingssong">${svg("heartO")}</button>
                 <button class="nb sm" data-a="queue" aria-label="Warteschlange">${svg("queue")}</button>
                 <button class="nb sm" data-a="timer" aria-label="Sleep-Timer">${svg("timer")}</button>
+                <button class="nb sm" data-a="eq" aria-label="Equalizer" title="Equalizer">${svg("eq")}</button>
                 <button class="nb sm" data-a="history" aria-label="Zuletzt gehört">${svg("history")}</button>
               </div>
             </div>
@@ -688,6 +694,14 @@ class SpotifyFlexFlowCard extends HTMLElement {
       case "queue": return this._openQueue();
       case "timer": return this._openTimer();
       case "speakers": return this._openSpeakers();
+      case "eq": return this._openEq();
+      case "eq-toggle": return this._eqChange({ enabled: !this._s.eq.enabled }, true);
+      case "eq-preset": {
+        const p = this._s.eq.presets.find((x) => x.id === btn.dataset.id);
+        Object.assign(this._s.eq, { preset: p.id, gains: p.gains.slice(), enabled: true });
+        this._renderEq();
+        return this._eqSend({ preset: p.id }, true);
+      }
       case "close": return this._closeSheet();
       case "off-minus": return this._setOffset(-0.1);
       case "off-plus": return this._setOffset(0.1);
@@ -844,6 +858,146 @@ class SpotifyFlexFlowCard extends HTMLElement {
     if (this._s.sheet !== "speakers") return;
     if (sheet.contains(this.shadowRoot.activeElement) && this.shadowRoot.activeElement?.matches?.(".spk-vol")) return;
     sheet.innerHTML = html;
+  }
+
+  /* equalizer */
+  async _openEq() {
+    this._sheet("eq", `${this._head("Equalizer", "eq")}<p class="lmsg">Wird geladen …</p>`);
+    try {
+      this._s.eq = await this._resp("equalizer");
+      this._eqMark();
+      if (this._s.sheet === "eq") this._renderEq();
+    } catch (err) {
+      const msg = /not found|nicht gefunden|Unknown service|unknown/i.test(err?.message || "")
+        ? "Für den Equalizer Home Assistant einmal neu starten (neue Version der Integration)."
+        : (err?.message || String(err));
+      if (this._s.sheet === "eq") this._$(".sheet .lmsg").textContent = msg;
+    }
+  }
+
+  _eqMark() {
+    this._$('.actions [data-a="eq"]')?.classList.toggle("on", !!this._s.eq?.enabled);
+  }
+
+  _renderEq() {
+    const e = this._s.eq;
+    if (!e || this._s.sheet !== "eq") return;
+    const name = !e.enabled ? "Aus" : e.preset === "custom" ? "Eigene Einstellung" : (e.presets.find((p) => p.id === e.preset) || {}).name || "";
+    this._$(".sheet").innerHTML = `${this._head("Equalizer", "eq", `<button class="switch ${e.enabled ? "on" : ""}" data-a="eq-toggle" role="switch" aria-checked="${!!e.enabled}" aria-label="Equalizer an oder aus"></button>`)}
+      <div class="eq-wrap"></div>
+      <div class="eq-name">${esc(name)}</div>
+      <div class="gchips eq-presets">${e.presets.map((p) => `<button class="gchip ${e.enabled && e.preset === p.id ? "on" : ""}" data-a="eq-preset" data-id="${esc(p.id)}">${esc(p.name)}</button>`).join("")}</div>
+      <p class="hint center">Punkte ziehen oder Voreinstellung wählen – wirkt sofort auf allen Lautsprechern.</p>`;
+    this._drawEq();
+    const wrap = this._$(".eq-wrap");
+    wrap.addEventListener("pointerdown", (ev) => this._eqDown(ev));
+    wrap.addEventListener("keydown", (ev) => this._eqKey(ev));
+    this._eqMark();
+  }
+
+  _eqGeo() {
+    const wrap = this._$(".eq-wrap");
+    const w = Math.max(260, Math.round(wrap?.clientWidth || 600));
+    return { w, h: 200, l: 30, r: 22, t: 24, b: 40 };
+  }
+
+  _drawEq() {
+    const e = this._s.eq, wrap = this._$(".eq-wrap");
+    if (!e || !wrap) return;
+    const G = this._eqGeo(), n = e.bands.length, max = e.max;
+    const X = (i) => G.l + (i * (G.w - G.l - G.r)) / (n - 1);
+    const Y = (g) => G.t + ((max - g) * (G.h - G.t - G.b)) / (2 * max);
+    const pts = e.gains.map((g, i) => [X(i), Y(g)]);
+    let d = `M${pts[0][0]},${pts[0][1]}`;
+    for (let i = 0; i < n - 1; i++) {
+      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+      d += ` C${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`;
+    }
+    const base = G.h - G.b;
+    const hz = (f) => (f >= 1000 ? `${String(f / 1000).replace(".", ",")}k` : `${f}`);
+    const db = (g) => `${g > 0 ? "+" : ""}${String(g).replace(".", ",")} dB`;
+    const drag = this._s.eqDrag;
+    wrap.innerHTML = `<svg class="eq-svg ${e.enabled ? "" : "off"}" viewBox="0 0 ${G.w} ${G.h}" width="${G.w}" height="${G.h}">
+      <defs><linearGradient id="sf-eq-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--acc)" stop-opacity=".28"/><stop offset="1" stop-color="var(--acc)" stop-opacity="0"/></linearGradient></defs>
+      ${[max, 0, -max].map((g) => `<line class="eq-grid ${g === 0 ? "zero" : ""}" x1="${G.l}" x2="${G.w - G.r}" y1="${Y(g)}" y2="${Y(g)}"/><text class="eq-lbl" x="2" y="${Y(g) + 4}">${g > 0 ? "+" : g < 0 ? "−" : ""}${Math.abs(g)}</text>`).join("")}
+      <path class="eq-area" d="${d} L${pts[n - 1][0]},${base} L${pts[0][0]},${base} Z"/>
+      <path class="eq-curve" d="${d}"/>
+      ${pts.map(([x, y], i) => `<g class="eq-dot ${drag === i ? "active" : ""}" data-band="${i}" tabindex="0" role="slider" aria-label="${hz(e.bands[i])} Hz" aria-valuemin="${-max}" aria-valuemax="${max}" aria-valuenow="${e.gains[i]}" aria-valuetext="${db(e.gains[i])}">
+        <circle class="eq-knob" cx="${x}" cy="${y}" r="${drag === i ? 11 : 8}"/>
+        ${drag === i ? `<text class="eq-val" x="${x}" y="${Math.max(13, y - 15)}">${db(e.gains[i])}</text>` : ""}
+        <text class="eq-hz" x="${x}" y="${G.h - 14}">${hz(e.bands[i])}</text></g>`).join("")}
+    </svg>`;
+    this._eqX = X; this._eqG = G;
+  }
+
+  _eqPoint(ev) {
+    const svgEl = this._$(".eq-svg"), r = svgEl.getBoundingClientRect(), G = this._eqG, e = this._s.eq;
+    const x = ((ev.clientX - r.left) / r.width) * G.w, y = ((ev.clientY - r.top) / r.height) * G.h;
+    let band = 0;
+    for (let i = 1; i < e.bands.length; i++) if (Math.abs(this._eqX(i) - x) < Math.abs(this._eqX(band) - x)) band = i;
+    const g = e.max - ((y - G.t) * 2 * e.max) / (G.h - G.t - G.b);
+    return { band, gain: Math.round(Math.max(-e.max, Math.min(e.max, g)) * 2) / 2 };
+  }
+
+  _eqSet(band, gain) {
+    const e = this._s.eq;
+    if (e.gains[band] === gain && e.enabled) return;
+    e.gains = e.gains.map((g, i) => (i === band ? gain : g));
+    const ch = { gains: e.gains };
+    if (!e.enabled) { e.enabled = true; ch.enabled = true; }
+    this._eqSend(ch);
+  }
+
+  _eqDown(ev) {
+    if (!ev.target.closest(".eq-svg") || !this._s.eq) return;
+    ev.preventDefault();
+    const wrap = this._$(".eq-wrap");
+    wrap.setPointerCapture?.(ev.pointerId);
+    const p = this._eqPoint(ev);
+    this._s.eqDrag = p.band;
+    this._eqSet(p.band, p.gain); this._drawEq();
+    const move = (e2) => { const q = this._eqPoint(e2); this._eqSet(this._s.eqDrag, q.gain); this._drawEq(); };
+    const up = () => {
+      wrap.removeEventListener("pointermove", move); wrap.removeEventListener("pointerup", up); wrap.removeEventListener("pointercancel", up);
+      this._s.eqDrag = null;
+      this._eqSend({}, true);
+    };
+    wrap.addEventListener("pointermove", move); wrap.addEventListener("pointerup", up); wrap.addEventListener("pointercancel", up);
+  }
+
+  _eqKey(ev) {
+    const dot = ev.target.closest?.(".eq-dot");
+    if (!dot) return;
+    const step = { ArrowUp: 0.5, ArrowRight: 0.5, ArrowDown: -0.5, ArrowLeft: -0.5, PageUp: 3, PageDown: -3 }[ev.key];
+    if (step === undefined && ev.key !== "Home") return;
+    ev.preventDefault();
+    const band = Number(dot.dataset.band), max = this._s.eq.max;
+    this._eqSet(band, ev.key === "Home" ? 0 : Math.max(-max, Math.min(max, this._s.eq.gains[band] + step)));
+    this._drawEq();
+    this._$(`.eq-dot[data-band="${band}"]`)?.focus({ preventScroll: true });
+  }
+
+  _eqChange(changes, now) {
+    Object.assign(this._s.eq, changes);
+    this._renderEq();
+    return this._eqSend(changes, now);
+  }
+
+  _eqSend(changes, now = false) {
+    this._eqPending = { ...(this._eqPending || {}), ...changes };
+    clearTimeout(this._eqTimer);
+    const go = async () => {
+      const body = this._eqPending; this._eqPending = null;
+      if (!body || !Object.keys(body).length) { if (this._s.eqDrag === null) this._renderEq(); return; }
+      try {
+        const r = await this._resp("equalizer", body);
+        if (this._s.eqDrag === null) { this._s.eq = r; this._renderEq(); } else this._s.eq.preset = r.preset;
+        this._eqMark();
+      } catch (err) { this._toast(err?.message || String(err), true); }
+    };
+    if (now) return go();
+    this._eqTimer = setTimeout(go, 150);
+    return undefined;
   }
 
   /* timer */
@@ -1157,6 +1311,22 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
 .lyrics-copy.big .lyric-line { padding:12px 2px 8px; }
 .hint { color:var(--muted); font-size:.82rem; margin:12px 4px 0; }
 .hint.center { text-align:center; }
+/* equalizer */
+.nb.on { color:var(--acc); }
+.eq-wrap { touch-action:none; user-select:none; -webkit-user-select:none; margin:4px 0 2px; }
+.eq-svg { display:block; width:100%; height:auto; overflow:visible; cursor:ns-resize; }
+.eq-grid { stroke:var(--lo); stroke-width:1; } .eq-grid.zero { stroke:var(--muted); stroke-opacity:.5; stroke-dasharray:4 4; }
+.eq-lbl, .eq-hz { fill:var(--muted); font-size:11px; } .eq-hz, .eq-val { text-anchor:middle; }
+.eq-val { fill:var(--ink); font-size:12px; font-weight:700; }
+.eq-area { fill:url(#sf-eq-fill); }
+.eq-curve { fill:none; stroke:var(--acc); stroke-width:3; stroke-linecap:round; }
+.eq-knob { fill:var(--acc); stroke:var(--bg); stroke-width:3; filter:drop-shadow(1px 2px 2px rgba(0,0,0,.18)); }
+.eq-dot:focus { outline:none; } .eq-dot:focus-visible .eq-knob { stroke:var(--ink); }
+.eq-svg.off .eq-curve { stroke:var(--muted); stroke-opacity:.5; } .eq-svg.off .eq-knob { fill:var(--muted); fill-opacity:.6; }
+.eq-svg.off .eq-area { opacity:.25; }
+.eq-name { text-align:center; font-weight:700; margin:4px 0 10px; color:var(--ink2); }
+.eq-presets { justify-content:center; }
+.eq-presets .gchip { padding:8px 14px; font-size:.82rem; }
 .pills { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:12px; }
 .pill { display:inline-flex; align-items:center; gap:6px; padding:10px 16px; border-radius:999px; box-shadow:var(--raise); font-weight:600; font-size:.9rem; }
 .pill:active { box-shadow:var(--inset); }

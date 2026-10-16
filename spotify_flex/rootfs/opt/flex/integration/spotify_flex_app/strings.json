@@ -97,6 +97,24 @@
           "description": "0 schaltet den Timer aus."
         }
       }
+    },
+    "equalizer": {
+      "name": "Equalizer",
+      "description": "Equalizer abfragen oder einstellen (ohne Felder: aktuelle Einstellung als Antwort).",
+      "fields": {
+        "enabled": {
+          "name": "An",
+          "description": "Equalizer ein- oder ausschalten."
+        },
+        "preset": {
+          "name": "Voreinstellung",
+          "description": "z. B. rock, pop, bass_boost, flat."
+        },
+        "gains": {
+          "name": "Bänder",
+          "description": "6 Werte in dB (−12 … 12) für 60 Hz, 150 Hz, 400 Hz, 1 kHz, 2,4 kHz, 15 kHz."
+        }
+      }
     }
   }
 }

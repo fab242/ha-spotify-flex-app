@@ -40,3 +40,17 @@ sleep_timer:
           min: 0
           max: 480
           unit_of_measurement: min
+equalizer:
+  fields:
+    enabled:
+      selector:
+        boolean:
+    preset:
+      example: "rock"
+      selector:
+        select:
+          options: [flat, acoustic, bass_boost, bass_cut, classical, dance, deep, electronic, hiphop, jazz, latin, loudness, lounge, piano, pop, rnb, rock, small_speakers, spoken, treble_boost, treble_cut, vocal]
+    gains:
+      example: "[3, 2, 0, 0, 1, 2]"
+      selector:
+        object:

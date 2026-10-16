@@ -108,3 +108,8 @@
 
 - Neu: **Equalizer** (Reiter „Equalizer“ der Einstellungsseite) mit 6 Bändern (60 Hz – 15 kHz, ±12 dB) und 22 Voreinstellungen wie in der Spotify-App. Kurve mit der Maus/dem Finger ziehen oder Voreinstellung wählen – Änderungen wirken sofort und ohne Unterbrechung auf allen Lautsprechern.
 - Audio läuft dafür durch den neuen Dienst `flex-eq` (go-librespot → Equalizer → OwnTone). Automatischer Headroom und weicher Limiter verhindern Übersteuern bei Anhebungen.
+
+## 1.7.1
+
+- Player-Kachel: neuer Button **Equalizer** (Regler-Symbol, grün wenn an) – Kurve ziehen, Voreinstellungen wählen, ein/aus; wirkt sofort.
+- Integration: neuer Dienst `spotify_flex_app.equalizer` (abfragen oder einstellen, z. B. in Automationen). Nach dem Update Home Assistant einmal neu starten.

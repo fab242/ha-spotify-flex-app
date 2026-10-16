@@ -97,6 +97,24 @@
           "description": "0 turns the timer off."
         }
       }
+    },
+    "equalizer": {
+      "name": "Equalizer",
+      "description": "Get or set the equalizer (no fields: current settings as response).",
+      "fields": {
+        "enabled": {
+          "name": "On",
+          "description": "Switch the equalizer on or off."
+        },
+        "preset": {
+          "name": "Preset",
+          "description": "e.g. rock, pop, bass_boost, flat."
+        },
+        "gains": {
+          "name": "Bands",
+          "description": "6 values in dB (-12 … 12) for 60 Hz, 150 Hz, 400 Hz, 1 kHz, 2.4 kHz, 15 kHz."
+        }
+      }
     }
   }
 }

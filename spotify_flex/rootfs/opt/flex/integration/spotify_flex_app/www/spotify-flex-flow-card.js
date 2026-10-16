@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.7.7";
+const CARD_VERSION = "1.7.8";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -796,6 +796,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
     }
     on.classList.toggle("on", !!url);
     off.classList.remove("on");
+    this.classList.toggle("has-art", !!url);
   }
 
   /* ------------------------------------------------------------- input */
@@ -1361,7 +1362,11 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:28p
 .surface { border-radius:28px; }
 .surface::after { content:""; position:absolute; inset:0; z-index:-1; border-radius:inherit; pointer-events:none;
   box-shadow:inset 9px 9px 18px color-mix(in srgb,var(--sf-lo2) 85%,transparent), inset -9px -9px 18px color-mix(in srgb,var(--sf-hi) 90%,transparent); }
-:host(.on-dark) .surface::after { box-shadow:inset 9px 9px 20px rgba(0,0,0,.38), inset -8px -8px 18px rgba(255,255,255,.14); }
+/* auf farbigem Cover-Hintergrund: kräftigere, neutrale Mulde mit scharfer Innenkante, damit sie sichtbar bleibt */
+:host(.has-art) .surface::after { box-shadow:inset 3px 3px 4px rgba(0,0,0,.42), inset -3px -3px 4px rgba(255,255,255,.45),
+  inset 16px 16px 28px rgba(0,0,0,.42), inset -14px -14px 26px rgba(255,255,255,.32); }
+:host(.has-art.on-dark) .surface::after { box-shadow:inset 3px 3px 4px rgba(0,0,0,.6), inset -3px -3px 4px rgba(255,255,255,.28),
+  inset 18px 18px 30px rgba(0,0,0,.55), inset -14px -14px 26px rgba(255,255,255,.18); }
 .surface { position:relative; display:grid; grid-template-rows:auto 1fr auto auto auto; gap:10px; padding:12px 16px 14px;
   min-height:420px; height:var(--h); background:transparent; isolation:isolate; }
 /* Cover-Farbverlauf: bündig über die ganze Kachel, zwei Ebenen zum Überblenden */

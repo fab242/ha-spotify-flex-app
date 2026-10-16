@@ -163,3 +163,7 @@
 ## 1.8.3
 
 - Player-Kachel: vertieftes Neumorph-Design (Mulde innen, feine helle Kante außen, 28 px Rundung) passend zu den übrigen Dashboard-Kacheln; die Innenschatten richten sich nach der Cover-Farbe.
+
+## 1.8.4
+
+- Player-Kachel: Vertiefung auch auf farbigem Cover-Hintergrund sichtbar (kräftigere neutrale Innenschatten mit scharfer Innenkante).

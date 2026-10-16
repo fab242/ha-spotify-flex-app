@@ -51,12 +51,14 @@ async def main() -> None:
         }""")
         await p.screenshot(path=str(OUT / "line_change_end.png"))
         await b.close()
+    samples = [x for x in samples if x["t"] > 150]  # nach dem Einschwingen
     jumps = [(a["t"], round(((b["x"] - a["x"]) ** 2 + ((b["y"] - b["s"]) - (a["y"] - a["s"])) ** 2) ** 0.5))
              for a, b in zip(samples, samples[1:])]
     scroll_steps = [round(b["s"] - a["s"], 1) for a, b in zip(samples, samples[1:]) if b["s"] != a["s"]]
     change = next((s["t"] for a, s in zip(samples, samples[1:]) if s["cur"] != a["cur"]), None)
     print("line change at ms:", change, "| ball always visible:", all(s["on"] for s in samples))
     print("largest ball step on screen per frame (px):", max(j for _t, j in jumps))
+    print("top steps:", sorted(jumps, key=lambda x: -x[1])[:4], "line change", change)
     print("scroll frames:", len(scroll_steps), "max step:", max(scroll_steps, default=0))
     print("errors:", errors or "none")
 

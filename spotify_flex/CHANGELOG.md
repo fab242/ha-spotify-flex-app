@@ -167,3 +167,7 @@
 ## 1.8.4
 
 - Player-Kachel: Vertiefung auch auf farbigem Cover-Hintergrund sichtbar (kräftigere neutrale Innenschatten mit scharfer Innenkante).
+
+## 1.8.5
+
+- Player-Kachel 2.0.0: visueller Editor („Spotify Flex Flow-Karte anpassen“) mit Breite/Ausrichtung, Hintergrund, Farbstärke, Akzentfarbe, Kachel-Optik, Liedtext-Optionen, Cover-Flow und Knopfauswahl.

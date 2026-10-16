@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.7.8";
+const CARD_VERSION = "2.0.0";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -101,6 +101,26 @@ try {  // Farbwechsel weich überblenden
 
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* privat */ } };
 
+const BUTTONS = [
+  { id: "speakers", label: "Lautsprecher / Gruppen" }, { id: "like", label: "Lieblingssong" }, { id: "queue", label: "Warteschlange" },
+  { id: "timer", label: "Sleep-Timer" }, { id: "eq", label: "Equalizer" }, { id: "history", label: "Zuletzt gehört" },
+];
+const DEFAULTS = {
+  entity: "media_player.spotify_flex_player",
+  height: 600,
+  width: 100,                  // % der verfügbaren Breite
+  align: "center",             // left | center | right
+  background: "cover",         // cover = weichgezeichnetes Cover, plain = weiß
+  cover_intensity: "strong",   // subtle | normal | strong
+  accent: "cover",             // cover = Farbe aus dem Cover, default = grün
+  depth: "inset",              // inset | raised | flat
+  lyrics: true,                // Liedtext beim ersten Öffnen anzeigen
+  karaoke_ball: true,          // springender Punkt über dem gesungenen Wort
+  lyrics_offset: 0,            // Sekunden Feinkorrektur – die Audio-Verzögerung misst die App selbst
+  cover_flow: true,            // vorheriges/nächstes Cover neben dem aktuellen
+  buttons: ["speakers", "like", "queue", "timer", "eq", "history"],
+};
+
 const TABS = [
   { id: "search", label: "Suche", icon: "search" },
   { id: "playlists", label: "Playlists", icon: "playlist", node: "playlists" },
@@ -172,20 +192,17 @@ export function parseLrc(raw) {
 
 class SpotifyFlexFlowCard extends HTMLElement {
   static getStubConfig() { return { entity: "media_player.spotify_flex_player" }; }
-  static getConfigElement() { return null; }
+  static getConfigElement() { return document.createElement("spotify-flex-flow-card-editor"); }
 
   setConfig(config) {
-    this._config = {
-      entity: "media_player.spotify_flex_player",
-      height: 600,
-      lyrics_offset: 0, // Sekunden Feinkorrektur – die Audio-Verzögerung misst die App selbst
-      cover_flow: true,
-      ...config,
-    };
+    this._config = { ...DEFAULTS, ...config };
+    const btns = Array.isArray(this._config.buttons) ? this._config.buttons : DEFAULTS.buttons;
+    this._config.buttons = btns.filter((b) => BUTTONS.some((x) => x.id === b));
+    this._applyLook();
     if (!/^media_player\./.test(this._config.entity)) throw new Error("entity muss ein media_player sein");
     this._ls = `sfflow:${this._config.entity}:`;
     this._s = {
-      sheet: null, eq: null, eqDrag: null, lyricsOn: lsGet(this._ls + "lyrics", true), offset: lsGet(this._ls + "fine", null),
+      sheet: null, eq: null, eqDrag: null, lyricsOn: lsGet(this._ls + "lyrics", this._config.lyrics !== false), offset: lsGet(this._ls + "fine", null),
       lib: { tab: "playlists", stack: [], view: lsGet(this._ls + "view", "grid"), query: "" },
       liked: null, likedUri: null, lyrics: null, lyricsKey: null, prevArt: null, lastArt: null,
       nextArt: null, queueKey: null, busy: new Set(),
@@ -327,6 +344,8 @@ class SpotifyFlexFlowCard extends HTMLElement {
   /* ------------------------------------------------------------- build */
   _build() {
     const h = Number(this._config.height) || 600;
+    const btn = (id, label, icon, title) => (this._config.buttons.includes(id)
+      ? `<button class="nb sm" data-a="${id}" aria-label="${label}"${title ? ` title="${title}"` : ""}>${svg(icon)}</button>` : "");
     this.shadowRoot.innerHTML = `<style>${CSS}</style>
       <ha-card class="sf" style="--h:${h}px">
         <div class="surface loading"><div class="bgfx" aria-hidden="true"><i></i><i></i></div>
@@ -346,12 +365,12 @@ class SpotifyFlexFlowCard extends HTMLElement {
             <div class="caption">
               <div class="copy"><div class="title">&nbsp;</div><div class="sub">&nbsp;</div></div>
               <div class="actions">
-                <button class="nb sm" data-a="speakers" aria-label="Lautsprecher oder Gruppe wählen" title="Lautsprecher / Gruppe">${svg("speaker")}</button>
-                <button class="nb sm" data-a="like" aria-label="Lieblingssong">${svg("heartO")}</button>
-                <button class="nb sm" data-a="queue" aria-label="Warteschlange">${svg("queue")}</button>
-                <button class="nb sm" data-a="timer" aria-label="Sleep-Timer">${svg("timer")}</button>
-                <button class="nb sm" data-a="eq" aria-label="Equalizer" title="Equalizer">${svg("eq")}</button>
-                <button class="nb sm" data-a="history" aria-label="Zuletzt gehört">${svg("history")}</button>
+                ${btn("speakers", "Lautsprecher oder Gruppe wählen", "speaker", "Lautsprecher / Gruppe")}
+                ${btn("like", "Lieblingssong", "heartO")}
+                ${btn("queue", "Warteschlange", "queue")}
+                ${btn("timer", "Sleep-Timer", "timer")}
+                ${btn("eq", "Equalizer", "eq", "Equalizer")}
+                ${btn("history", "Zuletzt gehört", "history")}
               </div>
             </div>
           </section>
@@ -424,8 +443,10 @@ class SpotifyFlexFlowCard extends HTMLElement {
     // header
     const speakers = (a.speakers || []);
     const spk = this._$('.actions [data-a="speakers"]');
-    spk.classList.toggle("warn", !speakers.length);
-    spk.title = speakers.length ? `Lautsprecher: ${a.source || speakers.join(", ")}` : "Kein Lautsprecher aktiv";
+    if (spk) {
+      spk.classList.toggle("warn", !speakers.length);
+      spk.title = speakers.length ? `Lautsprecher: ${a.source || speakers.join(", ")}` : "Kein Lautsprecher aktiv";
+    }
     const tb = this._$(".timer-badge");
     if (a.sleep_timer_ends) { tb.hidden = false; this._timerEnds = new Date(a.sleep_timer_ends).getTime(); }
     else { tb.hidden = true; this._timerEnds = null; }
@@ -508,6 +529,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
 
   _paintLike() {
     const b = this._$('[data-a="like"]');
+    if (!b) return;
     b.innerHTML = svg(this._s.liked ? "heart" : "heartO");
     b.classList.toggle("on", !!this._s.liked);
     b.disabled = !this._s.trackUri;
@@ -677,6 +699,15 @@ class SpotifyFlexFlowCard extends HTMLElement {
   _placeBall(box, L, li, ms, playing) {
     const ball = box.querySelector(".ball");
     if (!ball) return;
+    if (this._config.karaoke_ball === false) {     // nur Wort-Hervorhebung, ohne springenden Punkt
+      ball.classList.remove("on");
+      const row = li >= 0 ? box.querySelector(`.lyric-line[data-i="${li}"]`) : null;
+      const words = L.lines[li]?.words || [];
+      let k = -1;
+      for (let i = 0; i < words.length; i++) { if (words[i].t <= ms) k = i; else break; }
+      row?.querySelectorAll(".w").forEach((sp, i) => sp.classList.toggle("sung", i <= k));
+      return;
+    }
     const line = L.lines[li];
     const row = li >= 0 ? box.querySelector(`.lyric-line[data-i="${li}"]`) : null;
     const nextLine = L.lines[li + 1];
@@ -734,6 +765,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
   /* ------------------------------------- Hintergrund: weichgezeichnetes Cover (wie HOMEii) */
   _tint(proxyUrl, directUrl) {
     const token = (this._tintToken = (this._tintToken || 0) + 1);
+    if (this._config.background === "plain") { directUrl = null; proxyUrl = null; }
     const white = () => {                   // kein Cover: Hintergrund bleibt weiß
       ["--sf-bg", "--sf-hi", "--sf-lo", "--sf-lo2", "--acc", "--acc-light", "--sheet-tint"].forEach((v) => this.style.removeProperty(v));
       this.classList.remove("on-dark");
@@ -762,8 +794,12 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
     // Kontrast sichern: mittlere Helligkeit (weder hell noch dunkel) ist unlesbar. Helle Cover werden
     // leicht aufgehellt (dunkle Schrift), dunkle leicht abgedunkelt (helle Schrift) - Farben bleiben kräftig.
-    const dark = lum < 0.42;
-    const veil = dark ? Math.max(0, Math.min(0.5, 1 - 0.3 / Math.max(lum, 0.01))) : Math.max(0, Math.min(0.55, (0.66 - lum) / (1 - lum)));
+    // Stärke: dezent = zart aufgehellt (immer helle Schrift-Variante), normal, kräftig
+    const inten = this._config.cover_intensity;
+    const dark = inten !== "subtle" && lum < 0.42;
+    const target = inten === "subtle" ? 0.8 : inten === "normal" ? 0.72 : 0.66;
+    const veil = dark ? Math.max(0, Math.min(0.5, 1 - (inten === "normal" ? 0.26 : 0.3) / Math.max(lum, 0.01)))
+      : Math.max(0, Math.min(inten === "subtle" ? 0.8 : 0.6, (target - lum) / (1 - lum)));
     const mix = rgb.map((v) => Math.round(dark ? v * (1 - veil) : v + (255 - v) * veil));
     this.classList.toggle("on-dark", dark);
     // Akzentfarbe (aktive Knöpfe, Fortschritt, Lautstärke, Punkt): kräftigster Cover-Farbton,
@@ -772,8 +808,13 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const viv = rgb.vivid || (avgHsl[1] >= 6 ? [avgHsl[0], 0.5] : null);   // blasse Cover: Farbton des Mittelwerts
     const accLight = viv ? `hsl(${viv[0]} 85% 30%)` : "#1d2a39";            // für helle Flächen (auch Fenster)
     const st = this.style;
-    st.setProperty("--acc", dark ? (viv ? `hsl(${viv[0]} 100% 80%)` : "#ffffff") : accLight);
-    st.setProperty("--acc-light", accLight);
+    if (this._config.accent === "cover") {
+      st.setProperty("--acc", dark ? (viv ? `hsl(${viv[0]} 100% 80%)` : "#ffffff") : accLight);
+      st.setProperty("--acc-light", accLight);
+    } else {                                       // feste Akzentfarbe (grün), auf dunklem Grund heller
+      st.setProperty("--acc", dark ? "#5fe39a" : "#1e9e55");
+      st.removeProperty("--acc-light");
+    }
     const [h, S, L] = rgbHsl(mix);
     st.setProperty("--sheet-tint", `hsl(${h} ${S}% ${L}%)`);
     st.setProperty("--sf-bg", `hsl(${h} ${S}% ${L}%)`);
@@ -797,6 +838,17 @@ class SpotifyFlexFlowCard extends HTMLElement {
     on.classList.toggle("on", !!url);
     off.classList.remove("on");
     this.classList.toggle("has-art", !!url);
+  }
+
+  /* Aussehen aus der Konfiguration: Breite/Ausrichtung, Tiefe, Stärke des Cover-Hintergrunds */
+  _applyLook() {
+    const c = this._config;
+    const w = Math.max(30, Math.min(100, Number(c.width) || 100));
+    this.style.setProperty("--card-w", `${w}%`);
+    this.style.setProperty("--card-ml", c.align === "left" ? "0" : "auto");
+    this.style.setProperty("--card-mr", c.align === "right" ? "0" : "auto");
+    this.style.setProperty("--art-sat", { subtle: "1.2", normal: "1.8", strong: "2.6" }[c.cover_intensity] || "2.6");
+    ["inset", "raised", "flat"].forEach((d) => this.classList.toggle(`depth-${d}`, (c.depth || "inset") === d));
   }
 
   /* ------------------------------------------------------------- input */
@@ -1358,7 +1410,12 @@ svg { width:22px; height:22px; fill:currentColor; flex:none; }
 svg.st { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 /* vertiefte Kachel (wie die übrigen Dashboard-Kacheln): feine helle Kante außen, Mulde innen */
 ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:28px; overflow:hidden; color:var(--ink);
-  box-shadow:3px 3px 6px rgba(255,255,255,.75), -2px -2px 6px rgba(160,171,182,.28); }
+  box-shadow:3px 3px 6px rgba(255,255,255,.75), -2px -2px 6px rgba(160,171,182,.28);
+  width:var(--card-w,100%); margin-left:var(--card-ml,auto); margin-right:var(--card-mr,auto); }
+/* Tiefe: erhaben (klassisch) oder flach statt vertieft */
+:host(.depth-raised) ha-card.sf { box-shadow:-6px -6px 12px #ffffff, 7px 8px 16px #cdd6df; }
+:host(.depth-raised) .surface::after, :host(.depth-flat) .surface::after { display:none; }
+:host(.depth-flat) ha-card.sf { box-shadow:none; }
 .surface { border-radius:28px; }
 .surface::after { content:""; position:absolute; inset:0; z-index:-1; border-radius:inherit; pointer-events:none;
   box-shadow:inset 9px 9px 18px color-mix(in srgb,var(--sf-lo2) 85%,transparent), inset -9px -9px 18px color-mix(in srgb,var(--sf-hi) 90%,transparent); }
@@ -1372,7 +1429,7 @@ ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:28p
 /* Cover-Farbverlauf: bündig über die ganze Kachel, zwei Ebenen zum Überblenden */
 .surface > .bgfx { position:absolute; inset:0; z-index:-1; pointer-events:none; grid-area:auto !important; visibility:visible !important; border-radius:inherit; overflow:hidden; }
 .bgfx i { position:absolute; inset:-60px; opacity:0; transition:opacity 1.1s ease; background:center/cover no-repeat;
-  filter:blur(40px) saturate(2.6) brightness(1.05); transform:scale(1.15); }
+  filter:blur(40px) saturate(var(--art-sat,2.6)) brightness(1.05); transform:scale(1.15); }
 /* dunkler, kräftiger Hintergrund: helle Schrift */
 :host(.on-dark) { --ink:#f3f6f9; --ink2:#e3e8ee; --muted:#c9d1da; --ink-strong:#ffffff; --ink-dim:rgba(255,255,255,.62); }
 :host(.on-dark) .lyric-line { opacity:.55; } :host(.on-dark) .lyric-line.current { opacity:1; }
@@ -1584,9 +1641,91 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
 .surface.unavailable .transport, .surface.unavailable .volume { opacity:.5; pointer-events:none; }
 `;
 
+/* ------------------------------------------------------------ visueller Editor */
+const EDITOR_LABELS = {
+  entity: "Player", height: "Höhe", width: "Breite", align: "Ausrichtung", background: "Hintergrund",
+  cover_intensity: "Farbstärke des Cover-Hintergrunds", accent: "Akzentfarbe", depth: "Kachel-Optik",
+  lyrics: "Liedtext anzeigen", karaoke_ball: "Springender Punkt im Liedtext", lyrics_offset: "Liedtext-Feinkorrektur",
+  cover_flow: "Vorheriges/nächstes Cover zeigen", buttons: "Knöpfe unter dem Titel",
+};
+const EDITOR_HELP = {
+  width: "Anteil der verfügbaren Breite – z. B. 75 % für 3 von 4 Spalten.",
+  lyrics: "Gilt beim ersten Öffnen; danach merkt sich jedes Gerät den Liedtext-Knopf.",
+  lyrics_offset: "Nur nötig, wenn der Text dauerhaft zu früh/spät ist – die Verzögerung wird automatisch gemessen.",
+  accent: "Farbe für aktive Knöpfe, Fortschritts- und Lautstärkebalken.",
+};
+const opts = (pairs) => ({ select: { mode: "dropdown", options: pairs.map(([value, label]) => ({ value, label })) } });
+const EDITOR_SCHEMA = [
+  { name: "entity", required: true, selector: { entity: { domain: "media_player" } } },
+  { type: "grid", name: "", schema: [
+    { name: "height", selector: { number: { min: 360, max: 1000, step: 10, mode: "box", unit_of_measurement: "px" } } },
+    { name: "width", selector: { number: { min: 30, max: 100, step: 5, mode: "slider", unit_of_measurement: "%" } } },
+  ] },
+  { name: "align", selector: opts([["left", "Links"], ["center", "Mittig"], ["right", "Rechts"]]) },
+  { type: "expandable", name: "", title: "Aussehen", icon: "mdi:palette-outline", flatten: true, schema: [
+    { name: "background", selector: opts([["cover", "Weichgezeichnetes Cover"], ["plain", "Weiß"]]) },
+    { name: "cover_intensity", selector: opts([["subtle", "Dezent"], ["normal", "Normal"], ["strong", "Kräftig"]]) },
+    { name: "accent", selector: opts([["cover", "Aus dem Cover"], ["default", "Grün"]]) },
+    { name: "depth", selector: opts([["inset", "Vertieft"], ["raised", "Erhaben"], ["flat", "Flach"]]) },
+  ] },
+  { type: "expandable", name: "", title: "Liedtext", icon: "mdi:text-box-outline", flatten: true, schema: [
+    { name: "lyrics", selector: { boolean: {} } },
+    { name: "karaoke_ball", selector: { boolean: {} } },
+    { name: "lyrics_offset", selector: { number: { min: -3, max: 3, step: 0.1, mode: "slider", unit_of_measurement: "s" } } },
+  ] },
+  { type: "expandable", name: "", title: "Knöpfe & Cover", icon: "mdi:gesture-tap-button", flatten: true, schema: [
+    { name: "cover_flow", selector: { boolean: {} } },
+    { name: "buttons", selector: { select: { multiple: true, mode: "list", options: BUTTONS.map((b) => ({ value: b.id, label: b.label })) } } },
+  ] },
+];
+
+class SpotifyFlexFlowCardEditor extends HTMLElement {
+  setConfig(config) { this._config = { ...config }; this._render(); }
+  set hass(hass) { this._hass = hass; if (this._form) this._form.hass = hass; else this._render(); }
+
+  async connectedCallback() {
+    // ha-form wird von HA erst bei Bedarf geladen: über die Kartenhelfer nachladen
+    if (!customElements.get("ha-form") && window.loadCardHelpers) {
+      try {
+        const helpers = await window.loadCardHelpers();
+        const tile = await helpers.createCardElement({ type: "tile", entity: "sun.sun" });
+        await tile.constructor?.getConfigElement?.();
+      } catch (_) { /* egal – dann eben ohne */ }
+    }
+    this._render();
+  }
+
+  _render() {
+    if (!this._config || !this._hass || !customElements.get("ha-form")) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (s) => EDITOR_LABELS[s.name] || s.name;
+      this._form.computeHelper = (s) => EDITOR_HELP[s.name];
+      this._form.addEventListener("value-changed", (ev) => this._changed(ev.detail.value));
+      this.appendChild(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = EDITOR_SCHEMA;
+    this._form.data = { ...DEFAULTS, ...this._config };
+  }
+
+  _changed(value) {
+    const cfg = { type: this._config.type || "custom:spotify-flex-flow-card" };
+    for (const [k, v] of Object.entries(value)) {
+      if (k === "type" || v === undefined || v === "") continue;
+      if (k in DEFAULTS && JSON.stringify(DEFAULTS[k]) === JSON.stringify(v) && !(k in this._config)) continue;  // Standardwerte nicht mitschreiben
+      cfg[k] = v;
+    }
+    for (const k of ["grid_options", "view_layout", "visibility", "card_mod"]) if (this._config[k] !== undefined) cfg[k] = this._config[k];
+    this._config = cfg;
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: cfg }, bubbles: true, composed: true }));
+  }
+}
+if (!customElements.get("spotify-flex-flow-card-editor")) customElements.define("spotify-flex-flow-card-editor", SpotifyFlexFlowCardEditor);
+
 if (!customElements.get("spotify-flex-flow-card")) customElements.define("spotify-flex-flow-card", SpotifyFlexFlowCard);
 window.customCards = window.customCards || [];
 if (!window.customCards.some((c) => c.type === "spotify-flex-flow-card")) {
-  window.customCards.push({ type: "spotify-flex-flow-card", name: "Spotify Flex Flow", description: "Player im HOMEii-Aufbau für Spotify Flex", preview: false });
+  window.customCards.push({ type: "spotify-flex-flow-card", name: "Spotify Flex Flow", description: "Player im HOMEii-Aufbau für Spotify Flex", preview: false, documentationURL: "https://github.com/fab242/spotify-flex-flow-card" });
 }
 console.info(`%c SPOTIFY-FLEX-FLOW %c ${CARD_VERSION} `, "background:#1e9e55;color:#fff;border-radius:4px 0 0 4px;padding:2px 4px", "background:#f4f8fc;color:#283443;border-radius:0 4px 4px 0;padding:2px 4px");

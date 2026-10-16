@@ -95,7 +95,7 @@
   window.__hass = hass;
   await import("../spotify_flex/rootfs/opt/flex/integration/spotify_flex_app/www/spotify-flex-flow-card.js");
   const card = document.createElement("spotify-flex-flow-card");
-  card.setConfig({ entity: "media_player.spotify_flex_player", height: Number(params.get("h") || 600) });
+  card.setConfig({ entity: "media_player.spotify_flex_player", height: Number(params.get("h") || 600), ...(window.__extraConfig || {}) });
   document.getElementById("wrap").append(card);
   card.hass = hass;
   window.__card = card;

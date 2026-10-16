@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.7.4";
+const CARD_VERSION = "1.7.5";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -71,7 +71,7 @@ function coverAverage(img) {
   const ctx = c.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, n, n);
   const d = ctx.getImageData(0, 0, n, n).data;   // wirft bei CORS-gesperrten Bildern
-  let r = 0, g = 0, b = 0, w = 0, lo = 255, hi = 0;
+  let r = 0, g = 0, b = 0, w = 0, lo = 255, hi = 0, vx = 0, vy = 0, vw = 0, vs = 0;
   for (let i = 0; i < d.length; i += 4) {
     const y = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
     if (y < lo) lo = y; if (y > hi) hi = y;
@@ -79,10 +79,20 @@ function coverAverage(img) {
     const mx = Math.max(R, G, B), mn = Math.min(R, G, B), l = (mx + mn) / 2;
     const sat = mx === mn ? 0 : (mx - mn) / (1 - Math.abs(2 * l - 1));
     const wt = 0.35 + sat * 0.9 + (1 - Math.abs(l - 0.52)) * 0.55;
+    if (sat > 0.25 && l > 0.12 && l < 0.9) {   // kräftige Farbe -> Farbton für die Akzentfarbe
+      const ch = mx - mn;
+      let hh = mx === R ? ((G - B) / ch) % 6 : mx === G ? (B - R) / ch + 2 : (R - G) / ch + 4;
+      hh = (hh * 60 + 360) % 360;
+      const vwt = sat * sat * (1 - Math.abs(l - 0.5));
+      vx += Math.cos(hh * Math.PI / 180) * vwt; vy += Math.sin(hh * Math.PI / 180) * vwt; vw += vwt; vs += sat * vwt;
+    }
     r += d[i] * wt; g += d[i + 1] * wt; b += d[i + 2] * wt; w += wt;
   }
   if (hi - lo < 12) return "blank";   // einfarbiger Platzhalter (z. B. schwarzes Leerbild) = kein Cover
-  return w ? [r / w, g / w, b / w] : null;
+  if (!w) return null;
+  const avg = [r / w, g / w, b / w];
+  avg.vivid = vw > d.length / 4 * 0.004 ? [Math.round((Math.atan2(vy, vx) * 180 / Math.PI + 360) % 360), vs / vw] : null;
+  return avg;
 }
 
 try {  // Farbwechsel weich überblenden
@@ -725,7 +735,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
   _tint(proxyUrl, directUrl) {
     const token = (this._tintToken = (this._tintToken || 0) + 1);
     const white = () => {                   // kein Cover: Hintergrund bleibt weiß
-      ["--sf-bg", "--sf-hi", "--sf-lo", "--sf-lo2"].forEach((v) => this.style.removeProperty(v));
+      ["--sf-bg", "--sf-hi", "--sf-lo", "--sf-lo2", "--acc"].forEach((v) => this.style.removeProperty(v));
       this.classList.remove("on-dark");
       this._setArt(null);
     };
@@ -756,6 +766,11 @@ class SpotifyFlexFlowCard extends HTMLElement {
     const mix = rgb.map((v) => Math.round(v + (255 - v) * veil));
     const dark = (0.2126 * mix[0] + 0.7152 * mix[1] + 0.0722 * mix[2]) / 255 < 0.5;
     this.classList.toggle("on-dark", dark);
+    // Akzentfarbe (aktive Knöpfe, Fortschritt, Lautstärke, Punkt): kräftigster Cover-Farbton,
+    // so hell bzw. dunkel, dass sie sich vom Hintergrund abhebt
+    const avgHsl = rgbHsl(rgb);
+    const viv = rgb.vivid || (avgHsl[1] >= 6 ? [avgHsl[0], 0.5] : null);   // blasse Cover: Farbton des Mittelwerts
+    this.style.setProperty("--acc", viv ? (dark ? `hsl(${viv[0]} 100% 80%)` : `hsl(${viv[0]} 85% 30%)`) : (dark ? "#ffffff" : "#1d2a39"));
     const [h, S, L] = rgbHsl(mix);
     const st = this.style;
     st.setProperty("--sf-bg", `hsl(${h} ${S}% ${L}%)`);
@@ -1328,7 +1343,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
 }
 
 const CSS = `
-:host { --ink-strong:#172b40; --ink-dim:#7b8a9c; --sf-ctl:color-mix(in srgb,var(--sf-bg) 45%,transparent); --sf-bg:#f4f8fc; --ink:#283443; --ink2:#445265; --muted:#697789; --sf-hi:#ffffff; --sf-lo:#d4dce4; --sf-lo2:var(--sf-lo2); --acc:#1e9e55;
+:host { --ink-strong:#172b40; --ink-dim:#7b8a9c; --sf-ctl:color-mix(in srgb,var(--sf-bg) 45%,transparent); --sf-bg:#f4f8fc; --ink:#283443; --ink2:#445265; --muted:#697789; --sf-hi:#ffffff; --sf-lo:#d4dce4; --sf-lo2:#c3ccd6; --acc:#1e9e55;
   transition:--sf-bg .9s ease,--sf-hi .9s ease,--sf-lo .9s ease,--sf-lo2 .9s ease;
   --raise:-4px -4px 9px var(--sf-hi),4px 4px 9px var(--sf-lo); --raise-l:-6px -6px 14px var(--sf-hi),7px 8px 16px var(--sf-lo2);
   --inset:inset 4px 4px 8px var(--sf-lo),inset -4px -4px 8px var(--sf-hi); display:block; }
@@ -1419,7 +1434,7 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
 .lyric-line.current .w { color:var(--ink-dim); }
 .lyric-line.current .w.sung { color:var(--ink-strong); }
 .ball { position:absolute; left:0; top:0; z-index:2; width:10px; height:10px; border-radius:50%; background:var(--acc);
-  box-shadow:0 2px 5px rgba(30,158,85,.35); opacity:0; transition:opacity .2s; pointer-events:none; will-change:transform; }
+  box-shadow:0 2px 5px color-mix(in srgb,var(--acc) 40%,transparent); opacity:0; transition:opacity .2s; pointer-events:none; will-change:transform; }
 .ball.on { opacity:1; }
 .lyrics-bar { display:flex; justify-content:center; padding:6px 0 2px; }
 .lyrics-bar .offset { gap:6px; }

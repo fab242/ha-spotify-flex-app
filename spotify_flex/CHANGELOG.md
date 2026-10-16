@@ -150,3 +150,8 @@
 
 - Player-Kachel: ohne Cover – oder bei einfarbigen Platzhalter-Bildern – bleibt der Hintergrund weiß.
 - Enthält die Kachel-Neuerungen aus 1.7.3–1.7.9 (flüssiger Liedtext, Zufällig abspielen, Cover-Hintergrund).
+
+## 1.8.1
+
+- Player-Kachel: Akzentfarbe (aktive Knöpfe, Fortschritts- und Lautstärkebalken, Mitsing-Punkt, Equalizer) passt sich dem Cover an – kräftigster Cover-Farbton, hell auf dunklem und dunkel auf hellem Hintergrund. Ohne Cover bleibt sie grün.
+- Neumorph-Schatten ohne Cover wieder korrekt.

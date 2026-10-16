@@ -138,5 +138,8 @@ code { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; 
 
 /* Spotify-Empfänger (System) */
 .opt-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; align-items: end; margin: 8px 0 12px; }
-select.field { appearance: auto; background: var(--input-fill-color, transparent); }
+select.field { appearance: auto; background: var(--input-fill-color, var(--card-background-color)); color: var(--primary-text-color); }
+/* the opened list is drawn by the browser: give it the theme colours explicitly */
+select.field option { background-color: var(--card-background-color, #fff); color: var(--primary-text-color, #212121); }
+select.field option:checked { background-color: var(--primary-color); color: var(--text-primary-color, #fff); }
 .lbl small.hint { font-size: 12px; color: var(--secondary-text-color); }

@@ -99,3 +99,7 @@
 ## 1.6.4
 
 - Klangqualität: Wert wird im Format der App-Optionen gespeichert (Text statt Zahl).
+
+## 1.6.5
+
+- Klangqualität: Auswahlliste im HA-Design (vorher heller Hintergrund mit heller Schrift im dunklen Design).

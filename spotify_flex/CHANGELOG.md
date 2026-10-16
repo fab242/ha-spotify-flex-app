@@ -159,3 +159,7 @@
 ## 1.8.2
 
 - Player-Kachel: bessere Lesbarkeit. Mittelhelle Cover-Hintergründe werden leicht aufgehellt (dunkle Schrift) bzw. abgedunkelt (helle Schrift), statt im unlesbaren Mittelbereich zu landen. Fenster (Equalizer, Mediathek, Warteschlange, Lautsprecher, Timer), Menüs und Meldungen haben immer eine helle, leicht in Cover-Farbe getönte Fläche mit dunkler Schrift.
+
+## 1.8.3
+
+- Player-Kachel: vertieftes Neumorph-Design (Mulde innen, feine helle Kante außen, 28 px Rundung) passend zu den übrigen Dashboard-Kacheln; die Innenschatten richten sich nach der Cover-Farbe.

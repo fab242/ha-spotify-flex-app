@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.7.6";
+const CARD_VERSION = "1.7.7";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -1355,9 +1355,13 @@ const CSS = `
 button { font:inherit; color:inherit; border:0; background:none; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 svg { width:22px; height:22px; fill:currentColor; flex:none; }
 svg.st { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:20px; overflow:hidden; color:var(--ink);
-  box-shadow:-5px -5px 10px #ffffff, 6px 7px 14px #d2dbe4; }
-.surface { border-radius:20px; }
+/* vertiefte Kachel (wie die übrigen Dashboard-Kacheln): feine helle Kante außen, Mulde innen */
+ha-card.sf { display:block; background:var(--sf-bg); border:0; border-radius:28px; overflow:hidden; color:var(--ink);
+  box-shadow:3px 3px 6px rgba(255,255,255,.75), -2px -2px 6px rgba(160,171,182,.28); }
+.surface { border-radius:28px; }
+.surface::after { content:""; position:absolute; inset:0; z-index:-1; border-radius:inherit; pointer-events:none;
+  box-shadow:inset 9px 9px 18px color-mix(in srgb,var(--sf-lo2) 85%,transparent), inset -9px -9px 18px color-mix(in srgb,var(--sf-hi) 90%,transparent); }
+:host(.on-dark) .surface::after { box-shadow:inset 9px 9px 20px rgba(0,0,0,.38), inset -8px -8px 18px rgba(255,255,255,.14); }
 .surface { position:relative; display:grid; grid-template-rows:auto 1fr auto auto auto; gap:10px; padding:12px 16px 14px;
   min-height:420px; height:var(--h); background:transparent; isolation:isolate; }
 /* Cover-Farbverlauf: bündig über die ganze Kachel, zwei Ebenen zum Überblenden */

@@ -12,7 +12,7 @@ const ICON = {
 };
 const svg = (n) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICON[n]}"/></svg>`;
 
-const S = { tab: "accounts", state: null, speakers: [], groups: [], editGroup: null, busy: new Set(), openSpk: null };
+const S = { tab: "accounts", state: null, speakers: [], groups: [], editGroup: null, busy: new Set(), openSpk: null, app: null };
 
 /* ------------------------------------------------------------ HA-Design übernehmen */
 const THEME_VARS = [
@@ -117,8 +117,12 @@ async function loadSpeakers() {
   } catch (err) { S.speakerError = err.message; }
 }
 
+async function loadApp() {
+  try { S.app = await api("api/config/app"); } catch (_) { /* ältere App oder offline */ }
+}
+
 async function refresh(force = false) {
-  await Promise.all([loadState(), loadSpeakers()]);
+  await Promise.all([loadState(), loadSpeakers(), loadApp()]);
   if (force || !typing()) render();
 }
 
@@ -228,6 +232,31 @@ function viewGroups() {
   </section>`;
 }
 
+const BITRATE_LABEL = { 96: "Normal – 96 kbit/s", 160: "Hoch – 160 kbit/s", 320: "Sehr hoch – 320 kbit/s" };
+
+function viewReceiver() {
+  const a = S.app && S.app.settings;
+  if (!a) return `<section class="card"><h2>Spotify-Empfänger</h2><p class="desc">Einstellungen werden geladen …</p></section>`;
+  const rates = (S.app.bitrates || [96, 160, 320]);
+  return `<section class="card" id="receiver-cfg"><h2>Spotify-Empfänger</h2>
+      <p class="desc">Gerätename und Klang des Empfängers in der Spotify-App. Beim Speichern startet nur der Empfänger kurz neu – eine laufende Wiedergabe setzt dabei ein paar Sekunden aus.</p>
+      <div class="opt-form">
+        <label class="lbl"><span>Gerätename</span><input class="field" data-opt="device_name" value="${esc(a.device_name)}" maxlength="60" required></label>
+        <label class="lbl"><span>Klangqualität</span><select class="field" data-opt="bitrate">${rates.map((r) => `<option value="${r}" ${Number(a.bitrate) === r ? "selected" : ""}>${esc(BITRATE_LABEL[r] || `${r} kbit/s`)}</option>`).join("")}</select></label>
+        <label class="lbl inline"><button class="switch" role="switch" aria-checked="${!!a.normalisation}" data-act="opt-norm"></button><span>Lautstärke-Normalisierung<br><small class="hint">gleicht Lautstärkeunterschiede zwischen Liedern aus</small></span></label>
+      </div>
+      <p class="hint">Zeroconf, Client-ID und Protokollstufe: <b>Einstellungen → Apps → Spotify Flex → Konfiguration</b>.</p>
+    </section>`;
+}
+
+async function saveApp(values) {
+  const r = await api("api/config/app", { method: "PUT", body: values });
+  S.app = { ...(S.app || {}), settings: r.settings };
+  render();
+  toast(r.restarted ? "Gespeichert – Empfänger startet neu." : "Gespeichert.");
+  if (r.restarted) setTimeout(() => refresh(false), 6000);
+}
+
 function viewSystem() {
   const st = S.state;
   const integ = { installed: "installiert – Home Assistant einmal neu starten", updated: "aktualisiert – Home Assistant einmal neu starten", current: "installiert und aktuell", disabled: "in den App-Optionen ausgeschaltet", unavailable: "konnte nicht installiert werden (kein Zugriff auf den HA-Ordner)", error: "Fehler – siehe Protokoll" }[st.integration] || "unbekannt";
@@ -247,9 +276,7 @@ function viewSystem() {
       <div class="btn-row"><button class="btn" data-act="token">API-Token anzeigen</button></div>
       <p class="hint" id="token-out" hidden></p>
     </section>
-    <section class="card"><h2>App-Optionen</h2>
-      <p class="desc">Gerätename, Klangqualität, Lautstärke-Normalisierung, Zeroconf und Client-ID stellst du unter <b>Einstellungen → Apps → Spotify Flex → Konfiguration</b> ein. Danach startet die App neu.</p>
-    </section>
+    ${viewReceiver()}
     <section class="card"><h2>Netzwerk</h2>${netHtml}</section>`;
 }
 
@@ -313,6 +340,7 @@ document.addEventListener("click", async (ev) => {
       if (!g || !confirm(`Gruppe „${g.name}“ löschen?`)) return undefined;
       return once("gdel", async () => { const r = await api(`api/groups/${encodeURIComponent(g.id)}`, { method: "DELETE" }); S.groups = r.groups || []; render(); });
     }
+    case "opt-norm": return once("opt", () => saveApp({ normalisation: !S.app.settings.normalisation }));
     case "token": return once("tok", async () => {
       const t = await api("api/ha/token");
       const out = $("#token-out");
@@ -330,6 +358,13 @@ document.addEventListener("input", (ev) => {
 
 document.addEventListener("change", (ev) => {
   const t = ev.target;
+  if (t.dataset.opt) {
+    const key = t.dataset.opt;
+    const value = key === "bitrate" ? Number(t.value) : t.value.trim();
+    if (key === "device_name" && !value) { toast("Der Gerätename darf nicht leer sein.", true); t.value = S.app.settings.device_name; return; }
+    once("opt", () => saveApp({ [key]: value }));
+    return;
+  }
   const spk = t.closest(".spk");
   if (!spk || !t.dataset.key) return;
   const key = t.dataset.key;

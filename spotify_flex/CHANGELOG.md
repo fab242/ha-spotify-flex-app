@@ -91,3 +91,7 @@
 ## 1.6.2
 
 - Einstellungsseite: Lautsprecher-Gruppen stehen jetzt im Reiter „Lautsprecher“ unter den Lautsprechern; der eigene Reiter „Gruppen“ entfällt.
+
+## 1.6.3
+
+- Einstellungsseite, Reiter „System“: Gerätename, Klangqualität und Lautstärke-Normalisierung direkt einstellbar. Die Werte bleiben die App-Optionen (auch unter Konfiguration sichtbar); beim Speichern startet nur der Spotify-Empfänger kurz neu, nicht die ganze App.

@@ -19,7 +19,7 @@ from .api import SpotifyAuthError, SpotifyClient, SpotifyError, valid_id
 from .browse import browse
 from .const import INGRESS_PORT, LIBRESPOT_STATE, OPTIONS_FILE, REDIRECT_URI, VERSION
 from .oauth import WebAuth
-from . import hassbridge, netheal
+from . import appopts, hassbridge, netheal
 from .groups import GroupStore
 from .speakercfg import SpeakerConfig
 from .receiver import Librespot, MetaPipe, OwnTone
@@ -644,6 +644,20 @@ def build_app() -> web.Application:
         flex.speaker_cfg.set(oid, data)
         result = await speakers_changed()
         return ok(dict(result, all=await flex.speakers(True)))
+
+    # ---- receiver settings (device name, quality, normalisation)
+    @r.get("/api/config/app")
+    async def api_cfg_app(_request):
+        return ok({"settings": appopts.receiver_settings(flex.options), "bitrates": list(appopts.BITRATES)})
+
+    @r.put("/api/config/app")
+    async def api_cfg_app_set(request):
+        data = await body(request)
+        try:
+            flex.options, restarted = await appopts.apply(flex.session, flex.options, data)
+        except appopts.OptionsError as err:
+            raise SpotifyError(str(err), 400) from err
+        return ok({"settings": appopts.receiver_settings(flex.options), "restarted": restarted})
 
     @r.post("/api/config/speakers/{oid}/pair")
     async def api_cfg_speaker_pair(request):

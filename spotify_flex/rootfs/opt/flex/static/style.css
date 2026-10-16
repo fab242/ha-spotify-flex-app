@@ -135,3 +135,8 @@ code { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; 
   box-shadow: 0 4px 16px rgba(0,0,0,.25); z-index: 10; }
 .toast.err { background: var(--error-color); color: #fff; }
 @media (max-width: 520px) { .app { padding: 12px 12px 40px; } .card { padding: 14px; } }
+
+/* Spotify-Empfänger (System) */
+.opt-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; align-items: end; margin: 8px 0 12px; }
+select.field { appearance: auto; background: var(--input-fill-color, transparent); }
+.lbl small.hint { font-size: 12px; color: var(--secondary-text-color); }

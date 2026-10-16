@@ -38,6 +38,7 @@ DB = {
     ],
     "groups": [{"id": "abcdef123456", "name": "Wohnzimmer", "speakers": ["111", "222"]}],
 }
+APP = {"device_name": "Home Flex", "bitrate": 320, "normalisation": True}
 STATE = {
     "version": "1.6.0", "integration": "current",
     "receiver": {"running": True, "logged_in": True, "auth_code": None},
@@ -73,6 +74,13 @@ def app() -> web.Application:
         s["name"] = s.get("alias") or s["device_name"]
         return web.json_response({"all": DB["speakers"], "groups": DB["groups"]})
 
+    async def app_get(_r):
+        return web.json_response({"settings": APP, "bitrates": [96, 160, 320]})
+
+    async def app_put(r):
+        APP.update(await r.json())
+        return web.json_response({"settings": APP, "restarted": True})
+
     async def grp_create(r):
         data = await r.json()
         DB["groups"].append({"id": "fedcba654321", **data})
@@ -85,6 +93,8 @@ def app() -> web.Application:
     a.router.add_get("/ingress/api/config/speakers", cfg)
     a.router.add_put("/ingress/api/config/speakers/{oid}", cfg_put)
     a.router.add_post("/ingress/api/groups", grp_create)
+    a.router.add_get("/ingress/api/config/app", app_get)
+    a.router.add_put("/ingress/api/config/app", app_put)
     return a
 
 
@@ -122,7 +132,18 @@ async def main() -> None:
             await p.wait_for_timeout(300)
             await p.screenshot(path=str(OUT / f"cfg_{tag}_groups.png"))
             await f.locator('#tabs button[data-tab="system"]').click()
+            await f.locator("#receiver-cfg").wait_for()
             await p.screenshot(path=str(OUT / f"cfg_{tag}_system.png"))
+            await f.locator('[data-opt="device_name"]').fill("Wohnzimmer Flex")
+            await f.locator('[data-opt="device_name"]').press("Tab")
+            await p.wait_for_timeout(300)
+            await f.locator('[data-opt="bitrate"]').select_option("160")
+            await p.wait_for_timeout(300)
+            await f.locator('[data-act="opt-norm"]').click()
+            await p.wait_for_timeout(300)
+            await p.screenshot(path=str(OUT / f"cfg_{tag}_system_saved.png"))
+            print(tag, "app options:", APP)
+            APP.update({"device_name": "Home Flex", "bitrate": 320, "normalisation": True})
             bg = await f.locator("body").evaluate("e => getComputedStyle(e).backgroundColor")
             print(tag, "body background:", bg)
             await p.close()

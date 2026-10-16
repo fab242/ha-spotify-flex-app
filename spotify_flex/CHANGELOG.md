@@ -121,3 +121,7 @@
 ## 1.7.3
 
 - Liedtext: flüssiger Zeilenwechsel – die Zeilen rollen weich weiter (eigene Ease-Animation statt Sprung), die aktuelle Zeile wird sanft hervorgehoben (kein Fettschrift-Sprung mehr), der Zeilenwechsel wird im Bildtakt statt alle 250 ms erkannt, und der springende Punkt hüpft am Zeilenende im Bogen zum ersten Wort der nächsten Zeile.
+
+## 1.7.4
+
+- Player-Kachel: in Playlists, Alben usw. neben „Alles abspielen“ jetzt auch **„Zufällig abspielen“** (startet mit einem zufälligen Titel, Zufallswiedergabe an). „Alles abspielen“ spielt in Reihenfolge.

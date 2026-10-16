@@ -61,6 +61,16 @@ async def main() -> None:
         await click(p, '[data-a="view"]')
         await click(p, '.item-main[data-a="open"]')
         await p.screenshot(path=str(OUT / "wide_playlist.png"))
+        await p.evaluate("window.__calls.length = 0")
+        await click(p, '[data-a="play-all"][data-shuffle="1"]')
+        seq = await p.evaluate("window.__calls.filter((c) => c[0] === 'media_player').map((c) => c[1] + (c[2].shuffle !== undefined ? ':' + c[2].shuffle : ''))")
+        print("shuffle play calls:", seq)
+        assert seq == ["shuffle_set:true", "play_media", "shuffle_set:true"], seq
+        await p.evaluate("window.__calls.length = 0")
+        await click(p, '[data-a="play-all"][data-shuffle="0"]')
+        seq = await p.evaluate("window.__calls.filter((c) => c[0] === 'media_player').map((c) => c[1] + (c[2].shuffle !== undefined ? ':' + c[2].shuffle : ''))")
+        print("ordered play calls:", seq)
+        assert seq == ["shuffle_set:false", "play_media"], seq
         await click(p, '[data-a="view"]')
         await click(p, '[data-a="tab"][data-tab="search"]')
         await p.evaluate("(() => { const i = window.__card.shadowRoot.querySelector('.search-in'); i.value = 'Delerium'; })()")

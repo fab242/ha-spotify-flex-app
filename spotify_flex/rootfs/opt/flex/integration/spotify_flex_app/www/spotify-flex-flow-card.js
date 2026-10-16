@@ -3,7 +3,7 @@
  * Helles Neumorph ohne Logo/Farbverlauf, Liedtext synchron zum AirPlay-Ton, Mediathek,
  * Suche, Warteschlange, Lieblingssongs, Sleep-Timer, Equalizer und Lautsprecher/Gruppen.
  */
-const CARD_VERSION = "1.6.1";
+const CARD_VERSION = "1.6.2";
 const DOMAIN = "spotify_flex_app";
 
 const P = {
@@ -747,6 +747,7 @@ class SpotifyFlexFlowCard extends HTMLElement {
       case "open": this._s.lib.stack.push({ id: btn.dataset.id, title: btn.dataset.title }); return this._renderLibrary();
       case "more": return this._renderLibrary(false, btn.dataset.id);
       case "play": return this._playItem(btn.dataset.id, btn.dataset.title);
+      case "play-all": return this._playItem(btn.dataset.id, btn.dataset.title, btn.dataset.shuffle === "1");
       case "item-menu": return this._itemMenu(btn);
       case "enqueue": return this._once("enq", async () => {
         await this._svc(DOMAIN, "add_to_queue", { uri: btn.dataset.uri });
@@ -1111,7 +1112,9 @@ class SpotifyFlexFlowCard extends HTMLElement {
         uri: c.can_play && !c.can_expand ? c.media_content_id.split("|")[0] : null,
       })).join("");
       const moreBtn = more ? `<button class="more-btn" data-a="more" data-id="${esc(more.media_content_id)}">Mehr laden</button>` : "";
-      const head = top && /#spotify:/.test(top.id) ? `<button class="pill play-all" data-a="play" data-id="${esc(top.id)}" data-title="${esc(top.title)}">${svg("play")} Alles abspielen</button>` : "";
+      const head = top && /#spotify:/.test(top.id) ? `<div class="play-row">
+          <button class="pill play-all" data-a="play-all" data-shuffle="0" data-id="${esc(top.id)}" data-title="${esc(top.title)}">${svg("play")} Alles abspielen</button>
+          <button class="pill play-all" data-a="play-all" data-shuffle="1" data-id="${esc(top.id)}" data-title="${esc(top.title)}">${svg("shuffle")} Zufällig abspielen</button></div>` : "";
       if (moreId) {
         body.querySelector(".more-btn")?.remove();
         body.insertAdjacentHTML("beforeend", html + moreBtn);
@@ -1216,12 +1219,16 @@ class SpotifyFlexFlowCard extends HTMLElement {
 
   _closeMenu() { this._menuEl?.remove(); this._menuEl = null; }
 
-  async _playItem(id, title) {
+  async _playItem(id, title, shuffle = null) {
     if (!id) return;
     await this._once("play", async () => {
+      // Zufallswiedergabe vorher setzen: der Empfänger startet dann mit einem zufälligen Titel
+      if (shuffle !== null) await this._player("shuffle_set", { shuffle });
       await this._svc("media_player", "play_media", { entity_id: this._config.entity, media_content_id: id, media_content_type: "music" });
+      // war vorher noch nichts geladen, greift die Einstellung erst jetzt
+      if (shuffle) await this._player("shuffle_set", { shuffle: true });
       this._closeMenu();
-      this._toast(`Spielt: ${title || "Auswahl"}`);
+      this._toast(shuffle ? `Zufällig: ${title || "Auswahl"}` : `Spielt: ${title || "Auswahl"}`);
       if (!(this._attrs.speakers || []).length) this._toast("Kein Lautsprecher aktiv – oben links Lautsprecher wählen.", true);
     });
   }
@@ -1367,7 +1374,8 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
 .pill { display:inline-flex; align-items:center; gap:6px; padding:10px 16px; border-radius:999px; box-shadow:var(--raise); font-weight:600; font-size:.9rem; }
 .pill:active { box-shadow:var(--inset); }
 .pill.off { color:#b42318; } .pill svg { width:18px; height:18px; }
-.play-all { margin:2px auto 10px; color:var(--acc); }
+.play-row { display:flex; flex-wrap:wrap; gap:10px; margin:2px 0 10px; }
+.play-all { color:var(--acc); }
 .gchips { display:flex; flex-wrap:wrap; gap:10px; margin:2px 0 14px; justify-content:center; }
 .gchip { display:inline-flex; align-items:center; gap:8px; padding:9px 16px; border-radius:999px; box-shadow:var(--raise); font-weight:600; font-size:.88rem; }
 .gchip svg { width:18px; height:18px; }
@@ -1419,7 +1427,7 @@ input[type=range]::-moz-range-thumb { width:20px; height:20px; border:0; border-
 .item-t { font-weight:600; font-size:.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .item-s { font-size:.78rem; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .lib-body.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:14px; align-content:start; }
-.lib-body.grid .grp, .lib-body.grid .lmsg, .lib-body.grid .more-btn, .lib-body.grid .play-all { grid-column:1 / -1; }
+.lib-body.grid .grp, .lib-body.grid .lmsg, .lib-body.grid .more-btn, .lib-body.grid .play-row { grid-column:1 / -1; }
 .lib-body.grid .item { flex-direction:column; padding:10px; box-shadow:var(--raise); border-radius:18px; }
 .lib-body.grid .item-main { flex-direction:column; text-align:center; padding:0; width:100%; }
 .lib-body.grid .thumb { width:100%; height:auto; aspect-ratio:1; border-radius:14px; }

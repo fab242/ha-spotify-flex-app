@@ -177,3 +177,8 @@
 - Neu: **Durchsagen** – Dienst `spotify_flex_app.announce` spielt TTS, Nachrichten oder andere Audio-Links synchron über die Spotify-Flex-Lautsprecher (Spotify wird pausiert, Lautstärken danach wiederhergestellt); `spotify_flex_app.stop_announcement` bricht ab. Ersatz für Music Assistant in Routinen.
 - Die Player-Kachel ist jetzt ein eigenes HACS-Paket (fab242/spotify-flex-flow-card) und nicht mehr in der App enthalten.
 - Nach dem Update Home Assistant einmal neu starten.
+
+## 1.10.0
+- Podcasts: Folgen kommen mit Erscheinungsdatum, Länge und Hörfortschritt („noch 12 Min.“, „angehört“).
+- Weiterhören: Folgen starten an der Stelle, an der du aufgehört hast (`media_content_id` mit `;t=<ms>`), auf Wunsch auch von vorn.
+- Neuer Dienst `spotify_flex_app.browse`: Bibliothek mit Untertiteln, z. B. für die Player-Kachel (ab Spotify Flex Flow 2.2.0).

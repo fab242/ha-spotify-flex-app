@@ -12,6 +12,19 @@ search:
           multiple: true
           options: [track, artist, album, playlist, show, episode, audiobook]
 queue:
+browse:
+  fields:
+    node:
+      example: "flex:node:shows@0"
+      selector:
+        text:
+    offset:
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 100000
+          mode: box
 add_to_queue:
   fields:
     uri:

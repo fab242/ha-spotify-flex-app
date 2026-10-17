@@ -222,11 +222,14 @@ class FlexBase(CoordinatorEntity[FlexCoordinator], MediaPlayerEntity):
             if not sep:
                 raise ServiceValidationError("Dieser Eintrag ist ein Ordner und kann nicht abgespielt werden.")
             media_id = container_uri
+        # optional ";t=<ms>" am Ende: an dieser Stelle starten (Podcast weiterhören)
+        media_id, _, start = media_id.partition(";t=")
+        position = int(start) if start.isdigit() else None
         uri, _, context = media_id.partition("|")
         if not uri.startswith("spotify:") and uri != "liked":
             raise ServiceValidationError("Erwartet wird eine Spotify-URI (spotify:track:…, spotify:playlist:…).")
         result = await self.coordinator.command("POST", "/api/play",
-                                                {"uri": uri, "context_uri": context or None})
+                                                {"uri": uri, "context_uri": context or None, "position_ms": position})
         if isinstance(result, dict) and result.get("warning"):
             raise HomeAssistantError(result["warning"])
 

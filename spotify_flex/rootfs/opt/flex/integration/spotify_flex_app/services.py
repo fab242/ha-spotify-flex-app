@@ -38,9 +38,12 @@ def media_item(it: dict, context_uri: str | None = None) -> dict:
     else:
         ctx = it.get("context_uri") or context_uri
         play_id = (uri + (f"|{ctx}" if ctx else "")) if uri else None
-    return {"title": it.get("name") or "", "subtitle": it.get("subtitle") or "", "image": it.get("image"),
-            "type": kind, "uri": uri, "play_id": play_id, "browse_id": browse_id,
-            "duration_ms": it.get("duration_ms")}
+    out = {"title": it.get("name") or "", "subtitle": it.get("subtitle") or "", "image": it.get("image"),
+           "type": kind, "uri": uri, "play_id": play_id, "browse_id": browse_id,
+           "duration_ms": it.get("duration_ms")}
+    if kind == "episode":  # Podcast-Folge: Erscheinungsdatum und Hörfortschritt
+        out.update({k: it.get(k) for k in ("release_date", "resume_ms", "progress", "fully_played")})
+    return out
 
 
 def _coordinator(hass: HomeAssistant):
@@ -73,6 +76,25 @@ def async_setup_services(hass: HomeAssistant) -> None:
             if items:
                 groups.append({"type": kind, "items": items})
         return {"groups": groups}
+
+    async def browse(call: ServiceCall) -> ServiceResponse:
+        """Eine Ebene der Bibliothek mit Untertiteln (Besitzer, Datum, Länge, Hörfortschritt)."""
+        node = call.data.get("node") or "root"
+        if node.startswith(NODE):
+            node = node.removeprefix(NODE).partition("#")[0]
+        offset = call.data.get("offset", 0)
+        if "@" in node:
+            node, _, off = node.rpartition("@")
+            offset = int(off or 0) if off.isdigit() else offset
+        page = await _call(hass, "GET", "/api/browse", params={"node": node, "offset": offset}) or {}
+        items = [media_item(it) for it in page.get("items") or [] if it.get("uri") or it.get("node")]
+        for it, raw in zip(items, [r for r in page.get("items") or [] if r.get("uri") or r.get("node")]):
+            if raw.get("type") == "category":  # Startseite: Bereiche wie Playlists, Podcasts …
+                it.update({"browse_id": f"{NODE}{raw['node']}@0", "play_id": None})
+        nxt = page.get("next_offset")
+        return {"title": page.get("title") or "", "node": f"{NODE}{node}@{offset}",
+                "context_uri": page.get("context_uri"), "total": page.get("total"),
+                "items": items, "next": f"{NODE}{node}@{nxt}" if nxt else None}
 
     async def queue(call: ServiceCall) -> ServiceResponse:
         data = await _call(hass, "GET", "/api/queue") or {}
@@ -167,6 +189,10 @@ def async_setup_services(hass: HomeAssistant) -> None:
         vol.Optional("types"): [vol.In(SEARCH_TYPES)],
     }), supports_response=SupportsResponse.ONLY)
     hass.services.async_register(DOMAIN, "queue", queue, vol.Schema({}), supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(DOMAIN, "browse", browse, vol.Schema({
+        vol.Optional("node", default="root"): vol.All(cv.string, vol.Length(max=300)),
+        vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100000)),
+    }), supports_response=SupportsResponse.ONLY)
     hass.services.async_register(DOMAIN, "add_to_queue", add_to_queue, vol.Schema({
         vol.Required("uri"): vol.All(cv.string, vol.Match(r"^spotify:(track|episode):[A-Za-z0-9]+$")),
     }))

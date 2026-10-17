@@ -43,6 +43,10 @@ Die Integration spricht nur lokal mit der App (127.0.0.1, mit eigenem Token).
 
 Die Kachel **Spotify Flex Flow** ist ein eigenes HACS-Paket: [fab242/spotify-flex-flow-card](https://github.com/fab242/spotify-flex-flow-card) (HACS → Benutzerdefinierte Repositories → Typ *Dashboard*). Alle Einstellungen gibt es im visuellen Editor der Karte.
 
+### Podcasts
+
+In der Player-Kachel (Bibliothek → Podcasts) lassen sich Podcasts suchen oder per Spotify-Link öffnen, abonnieren und das Abo beenden. In einem Podcast gibt es „Neueste Folge“, „Alles abspielen“ und „Zufällig abspielen“. Jede Folge zeigt Datum, Länge und Hörfortschritt und startet dort, wo du aufgehört hast (im Menü der Folge auch „Von vorn“ und „Folge merken“). Gemerkte Folgen stehen unter „Gespeicherte Folgen“.
+
 ### Durchsagen (TTS, Nachrichten, Radio-Links)
 
 `spotify_flex_app.announce` spielt Ansagen oder Audio-Links synchron über die Spotify-Flex-Lautsprecher (AirPlay 2 über OwnTone). Spotify wird dafür pausiert, die Lautstärken der Lautsprecher werden danach wiederhergestellt. `spotify_flex_app.stop_announcement` bricht ab.

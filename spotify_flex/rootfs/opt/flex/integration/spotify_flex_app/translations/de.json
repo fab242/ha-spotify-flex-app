@@ -141,6 +141,20 @@
     "stop_announcement": {
       "name": "Durchsage stoppen",
       "description": "Beendet eine laufende Durchsage."
+    },
+    "browse": {
+      "name": "Bibliothek durchsuchen",
+      "description": "Liefert eine Ebene der Spotify-Bibliothek mit Untertiteln, bei Podcast-Folgen mit Datum, Länge und Hörfortschritt.",
+      "fields": {
+        "node": {
+          "name": "Bereich",
+          "description": "z. B. flex:node:shows@0 (Podcasts) oder flex:node:show:<ID>@0; leer = Startseite."
+        },
+        "offset": {
+          "name": "Versatz",
+          "description": "Ab welchem Eintrag (zum Weiterblättern)."
+        }
+      }
     }
   }
 }

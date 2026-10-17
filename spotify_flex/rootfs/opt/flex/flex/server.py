@@ -568,12 +568,16 @@ def build_app() -> web.Application:
         data = await body(request)
         uri = str(data.get("uri", ""))
         context = data.get("context_uri") or None
+        try:  # Startposition (z. B. Podcast weiterhören), in ms
+            position = max(0, int(data.get("position_ms") or 0)) or None
+        except (TypeError, ValueError):
+            position = None
         if uri == "liked":
             uri = f"spotify:user:{flex.user_id()}:collection"
         if context and context != uri:
-            await flex.receiver.play(context, skip_to_uri=uri)
+            await flex.receiver.play(context, skip_to_uri=uri, position=position)
         else:
-            await flex.receiver.play(uri)
+            await flex.receiver.play(uri, position=position)
         if flex.sync_wake:
             flex.sync_wake.set()
         warning = None

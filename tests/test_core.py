@@ -234,3 +234,17 @@ def test_timeout_is_reported():
     with pytest.raises(SpotifyError) as err:
         run(c.devices())
     assert "Zeitüberschreitung" in str(err.value)
+
+
+def test_episode_details_for_podcasts():
+    from flex.normalize import normalize
+    ep = {"type": "episode", "id": "E1", "uri": "spotify:episode:E1", "name": "Folge 1", "release_date": "2026-10-12",
+          "duration_ms": 4_800_000, "resume_point": {"fully_played": False, "resume_position_ms": 754_000}}
+    n = normalize(ep)
+    assert n["subtitle"] == "12. Okt. 2026 · 1 Std. 20 Min. · noch 1 Std. 7 Min."
+    assert n["resume_ms"] == 754_000 and n["progress"] == 0.157 and n["fully_played"] is False
+    done = normalize({**ep, "resume_point": {"fully_played": True, "resume_position_ms": 0}})
+    assert done["subtitle"].endswith("angehört") and done["resume_ms"] is None and done["progress"] == 1.0
+    long = normalize({**ep, "duration_ms": 7_500_000, "resume_point": {}, "show": {"name": "Lage der Nation"}})
+    assert long["subtitle"] == "Lage der Nation · 12. Okt. 2026 · 2 Std. 5 Min."
+    assert normalize({**ep, "release_date": "2026-10", "release_date_precision": "month"})["subtitle"].startswith("Okt. 2026")

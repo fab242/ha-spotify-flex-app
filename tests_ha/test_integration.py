@@ -75,6 +75,12 @@ class FakeApp:
             return {"player": self.state["player"]}
         if path == "/api/play":
             return {"ok": True, "warning": None}
+        if path == "/api/browse" and params["node"] == "show:S1":
+            return {"node": "show:S1", "title": "Lage der Nation", "context_uri": "spotify:show:S1", "total": 2, "items": [
+                {"id": "E1", "uri": "spotify:episode:E1", "type": "episode", "name": "Folge 1", "subtitle": "12. Okt. 2026 · 80 Min. · noch 67 Min.",
+                 "playable": True, "expandable": False, "context_uri": "spotify:show:S1", "duration_ms": 4800000,
+                 "release_date": "2026-10-12", "resume_ms": 754000, "progress": 0.157, "fully_played": False},
+            ], "next_offset": None}
         if path == "/api/browse":
             return {"node": params["node"], "title": "Spotify-Bibliothek", "items": [
                 {"id": "playlists", "node": "playlists", "uri": None, "type": "category", "name": "Playlists",
@@ -181,7 +187,13 @@ async def test_discovery_entities_and_grouping(hass: HomeAssistant, fake: FakeAp
     await hass.services.async_call("media_player", "play_media", {
         "entity_id": "media_player.spotify_flex_player", "media_content_type": "music",
         "media_content_id": "spotify:track:T2|spotify:playlist:P1"}, blocking=True)
-    assert ("POST", "/api/play", {"uri": "spotify:track:T2", "context_uri": "spotify:playlist:P1"},
+    assert ("POST", "/api/play", {"uri": "spotify:track:T2", "context_uri": "spotify:playlist:P1", "position_ms": None},
+            None) in fake.calls
+    # Podcast weiterhören: Startposition ";t=<ms>"
+    await hass.services.async_call("media_player", "play_media", {
+        "entity_id": "media_player.spotify_flex_player", "media_content_type": "music",
+        "media_content_id": "spotify:episode:E1|spotify:show:S1;t=754000"}, blocking=True)
+    assert ("POST", "/api/play", {"uri": "spotify:episode:E1", "context_uri": "spotify:show:S1", "position_ms": 754000},
             None) in fake.calls
 
 
@@ -194,7 +206,7 @@ async def test_browse(hass: HomeAssistant, fake: FakeApp) -> None:
     fabian = root.children[1]
     assert fabian.can_play and fabian.can_expand and fabian.media_content_id.endswith("#spotify:playlist:P1")
     await ent.async_play_media("playlist", fabian.media_content_id)
-    assert fake.calls[-1][1:3] == ("/api/play", {"uri": "spotify:playlist:P1", "context_uri": None})
+    assert fake.calls[-1][1:3] == ("/api/play", {"uri": "spotify:playlist:P1", "context_uri": None, "position_ms": None})
     more = await ent.async_browse_media("directory", root.children[-1].media_content_id)
     assert fake.calls[-1][3] == {"node": "root", "offset": 50}
     assert more.title
@@ -341,3 +353,18 @@ async def test_speaker_rename_updates_device(hass: HomeAssistant, fake: FakeApp)
     await hass.async_block_till_done()
     dev = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, "speaker_111")})
     assert dev.name == "Bad unten"
+
+
+async def test_browse_service_for_card(hass: HomeAssistant, fake: FakeApp) -> None:
+    await _setup_via_discovery(hass)
+    root = await hass.services.async_call(DOMAIN, "browse", {}, blocking=True, return_response=True)
+    assert root["items"][0]["browse_id"] == "flex:node:playlists@0" and root["items"][0]["play_id"] is None
+    assert root["items"][1]["play_id"] == "flex:node:playlist:P1@0#spotify:playlist:P1"
+    assert root["items"][2]["play_id"] == "spotify:track:T2|spotify:playlist:P1"
+    assert root["next"] == "flex:node:root@50"
+    show = await hass.services.async_call(DOMAIN, "browse", {"node": "flex:node:show:S1@0#spotify:show:S1"},
+                                          blocking=True, return_response=True)
+    ep = show["items"][0]
+    assert show["context_uri"] == "spotify:show:S1" and show["next"] is None
+    assert ep["subtitle"].startswith("12. Okt. 2026") and ep["resume_ms"] == 754000 and ep["progress"] == 0.157
+    assert ep["play_id"] == "spotify:episode:E1|spotify:show:S1"

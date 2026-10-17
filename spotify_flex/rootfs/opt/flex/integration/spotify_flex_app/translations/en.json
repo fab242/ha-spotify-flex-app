@@ -141,6 +141,20 @@
     "stop_announcement": {
       "name": "Stop announcement",
       "description": "Ends a running announcement."
+    },
+    "browse": {
+      "name": "Browse library",
+      "description": "Returns one level of the Spotify library with subtitles; podcast episodes include date, length and listening progress.",
+      "fields": {
+        "node": {
+          "name": "Node",
+          "description": "e.g. flex:node:shows@0 (podcasts) or flex:node:show:<ID>@0; empty = start page."
+        },
+        "offset": {
+          "name": "Offset",
+          "description": "Start at this entry (paging)."
+        }
+      }
     }
   }
 }

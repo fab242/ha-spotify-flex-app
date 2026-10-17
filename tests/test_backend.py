@@ -178,6 +178,9 @@ def test_backend_flow(tmp_path, monkeypatch):
                     res = await r.json()
                 assert res["warning"] is None
                 assert ("/player/play", {"uri": "spotify:playlist:P1", "skip_to_uri": "spotify:track:T2"}) in CALLS
+                async with s.post(base + "api/play", json={"uri": "spotify:episode:E1", "context_uri": "spotify:show:S1", "position_ms": 754000}) as r:
+                    assert r.status == 200
+                assert ("/player/play", {"uri": "spotify:show:S1", "skip_to_uri": "spotify:episode:E1", "position": 754000}) in CALLS
                 async with s.post(base + "api/player/volume", json={"percent": 30}) as r:
                     assert r.status == 200
                 assert ("/player/volume", {"volume": 30}) in CALLS

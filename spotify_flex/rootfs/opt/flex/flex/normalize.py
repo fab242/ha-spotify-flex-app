@@ -83,6 +83,53 @@ def _names(people: Any) -> str:
     return ", ".join(p.get("name", "") for p in people if isinstance(p, dict) and p.get("name"))
 
 
+MONTHS = ("Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sept.", "Okt.", "Nov.", "Dez.")
+
+
+def _date_de(value: Any) -> str:
+    """'2026-10-12' -> '12. Okt. 2026'; '2026-10' -> 'Okt. 2026'; '2026' -> '2026'."""
+    if not isinstance(value, str):
+        return ""
+    parts = value.split("-")
+    try:
+        if len(parts) >= 3:
+            return f"{int(parts[2])}. {MONTHS[int(parts[1]) - 1]} {parts[0]}"
+        if len(parts) == 2:
+            return f"{MONTHS[int(parts[1]) - 1]} {parts[0]}"
+    except (ValueError, IndexError):
+        return ""
+    return parts[0]
+
+
+def _minutes(ms: Any) -> str:
+    if not isinstance(ms, (int, float)) or ms <= 0:
+        return ""
+    total = max(1, round(ms / 60000))
+    return f"{total // 60} Std. {total % 60} Min." if total >= 60 else f"{total} Min."
+
+
+def episode_info(obj: dict) -> dict:
+    """Release date, length and listening progress of a podcast episode."""
+    duration = obj.get("duration_ms") if isinstance(obj.get("duration_ms"), int) else None
+    resume = obj.get("resume_point") if isinstance(obj.get("resume_point"), dict) else {}
+    played = bool(resume.get("fully_played"))
+    pos = resume.get("resume_position_ms") if isinstance(resume.get("resume_position_ms"), int) else 0
+    if played or (duration and pos >= duration - 15000):
+        played, pos = True, 0
+    parts = [_date_de(obj.get("release_date")), _minutes(duration)]
+    if played:
+        parts.append("angehört")
+    elif pos > 0 and duration:
+        parts.append(f"noch {_minutes(duration - pos)}")
+    return {
+        "release_date": obj.get("release_date") if isinstance(obj.get("release_date"), str) else None,
+        "resume_ms": pos or None,
+        "progress": round(pos / duration, 3) if pos and duration else (1.0 if played else 0.0),
+        "fully_played": played,
+        "detail": " · ".join(p for p in parts if p),
+    }
+
+
 def _count(obj: dict) -> int | None:
     for key in ("items", "tracks"):
         value = obj.get(key)
@@ -112,7 +159,9 @@ def normalize(raw: Any) -> dict | None:
         image = pick_image(album.get("images")) or pick_image(obj.get("images"))
     elif kind == "episode":
         show = obj.get("show") if isinstance(obj.get("show"), dict) else {}
-        subtitle = show.get("name") or obj.get("release_date") or "Episode"
+        extra = episode_info(obj)
+        # in einer Podcast-Liste fehlt "show": dann nur Datum · Länge · Fortschritt
+        subtitle = " · ".join(p for p in (show.get("name"), extra["detail"]) if p) or "Folge"
         image = pick_image(obj.get("images")) or pick_image(show.get("images"))
     elif kind == "album":
         subtitle = _names(obj.get("artists")) or "Album"
@@ -135,7 +184,7 @@ def normalize(raw: Any) -> dict | None:
         image = pick_image(obj.get("images"))
 
     playable = (not is_local) and obj.get("is_playable", True) is not False and bool(uri)
-    return {
+    out = {
         "id": obj.get("id"),
         "uri": uri,
         "type": kind,
@@ -148,6 +197,9 @@ def normalize(raw: Any) -> dict | None:
         "expandable": kind in EXPANDABLE,
         "is_local": is_local,
     }
+    if kind == "episode":
+        out.update(extra)
+    return out
 
 
 def page_container(payload: Any, key: str | None = None) -> dict:

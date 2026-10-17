@@ -399,7 +399,7 @@ class SpotifyClient:
                                {"include_groups": "album,single,compilation"}, cache_ttl=600)
 
     async def show_episodes(self, show_id: str, offset: int = 0) -> dict:
-        return await self.page(f"/shows/{valid_id(show_id)}/episodes", offset, cache_ttl=600)
+        return await self.page(f"/shows/{valid_id(show_id)}/episodes", offset, cache_ttl=60)  # Hörfortschritt aktuell halten
 
     async def audiobook_chapters(self, book_id: str, offset: int = 0) -> dict:
         return await self.page(f"/audiobooks/{valid_id(book_id)}/chapters", offset, cache_ttl=600)

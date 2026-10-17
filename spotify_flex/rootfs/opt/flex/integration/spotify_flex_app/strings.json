@@ -155,6 +155,42 @@
           "description": "Ab welchem Eintrag (zum Weiterblättern)."
         }
       }
+    },
+    "lyrics": {
+      "name": "Liedtext",
+      "description": "Liedtext eines Titels (Standard: der laufende) von lrclib, mit genauen Wortzeiten aus der Liedtext-Analyse, soweit vorhanden.",
+      "fields": {
+        "uri": {
+          "name": "Titel-URI",
+          "description": "Leer = laufender Titel."
+        },
+        "title": {
+          "name": "Titel",
+          "description": "Titelname (mit URI angeben)."
+        },
+        "artist": {
+          "name": "Künstler",
+          "description": "Künstler."
+        },
+        "album": {
+          "name": "Album",
+          "description": "Album."
+        },
+        "duration_ms": {
+          "name": "Länge",
+          "description": "Titellänge in ms."
+        }
+      }
+    },
+    "lyrics_coverage": {
+      "name": "Liedtext-Abdeckung",
+      "description": "Wie viele der angegebenen Titel schon exakt analysiert sind.",
+      "fields": {
+        "uris": {
+          "name": "Titel-URIs",
+          "description": "Liste von spotify:track:… URIs."
+        }
+      }
     }
   }
 }

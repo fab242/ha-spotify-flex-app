@@ -1,5 +1,5 @@
 name: Spotify Flex
-version: "1.10.3"
+version: "1.11.0"
 slug: spotify_flex
 description: Eigenständiger Spotify-Player mit Connect-Empfänger und AirPlay-Ausgabe an HomePods
 url: https://github.com/fab242/ha-spotify-flex-app
@@ -31,6 +31,7 @@ options:
   zeroconf: false
   log_level: info
   ha_integration: true
+  lyrics_aligner_url: ""
 schema:
   device_name: str
   client_id: str?
@@ -39,3 +40,5 @@ schema:
   zeroconf: bool
   log_level: list(trace|debug|info|warn|error)
   ha_integration: bool
+  lyrics_aligner_url: str?
+  lyrics_aligner_token: password?

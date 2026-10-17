@@ -19,3 +19,9 @@ configuration:
   ha_integration:
     name: Home Assistant player
     description: Installs the "Spotify Flex Player" integration (player, speakers and groups as entities for tiles and automations).
+  lyrics_aligner_url:
+    name: Lyrics analysis (address)
+    description: Address of the flex-lyrics-aligner container on your network, e.g. http://192.168.0.20:8770. Lines and the bouncing ball then follow the vocals exactly. Empty = off.
+  lyrics_aligner_token:
+    name: Lyrics analysis (token)
+    description: Only needed if ALIGNER_TOKEN is set in the container.

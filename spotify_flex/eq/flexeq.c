@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <math.h>
 #include <signal.h>
+#include <sys/ioctl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -207,6 +208,50 @@ static int open_out(const char *path) {
     }
 }
 
+/* ---- Abzweig für die Liedtext-Analyse (optional, 4. Argument) ------------------------------
+ * Rohes PCM vor dem Equalizer, als Nachrichten <= PIPE_BUF (atomar): "FXT2", uint32 Frames,
+ * uint64 fortlaufender Frame-Zähler, uint32 Bytes, die beim Lesen dieses Blocks noch in der Pipe zu
+ * OwnTone warteten (so weit liegt der Block hinter dem, was OwnTone gerade liest), dann die Samples.
+ * Nicht-blockierend: liest niemand mit oder ist die Pipe voll, werden nur Analysedaten verworfen –
+ * die Wiedergabe stockt nie. */
+#define TAP_HEAD 20
+#define TAP_MAX_FRAMES ((4096 - TAP_HEAD) / (CH * 2))
+static const char *tap_path;
+static int tap_fd = -1;
+static double tap_retry;
+static unsigned long long tap_frames;   /* Frames seit Start von flex-eq (auch ohne Leser gezählt) */
+
+static void tap(const short *pcm, size_t frames, unsigned int queued) {
+    if (!tap_path) return;
+    if (tap_fd < 0) {
+        double t = now();
+        if (t >= tap_retry) {
+            tap_fd = open(tap_path, O_WRONLY | O_NONBLOCK);   /* ENXIO, solange niemand liest */
+            tap_retry = t + 1.0;
+            if (tap_fd >= 0) fcntl(tap_fd, F_SETPIPE_SZ, 1 << 20);
+        }
+    }
+    size_t done = 0;
+    while (done < frames) {
+        size_t n = frames - done;
+        if (n > TAP_MAX_FRAMES) n = TAP_MAX_FRAMES;
+        if (tap_fd >= 0) {
+            static char msg[4096];
+            unsigned int nf = (unsigned int)n;
+            unsigned long long idx = tap_frames + done;
+            memcpy(msg, "FXT2", 4);
+            memcpy(msg + 4, &nf, 4);
+            memcpy(msg + 8, &idx, 8);
+            memcpy(msg + 16, &queued, 4);
+            memcpy(msg + TAP_HEAD, pcm + done * CH, n * CH * 2);
+            ssize_t w = write(tap_fd, msg, TAP_HEAD + n * CH * 2);
+            if (w < 0 && errno != EAGAIN && errno != EINTR) { close(tap_fd); tap_fd = -1; }
+        }
+        done += n;
+    }
+    tap_frames += frames;
+}
+
 static int write_all(int fd, const char *buf, size_t len) {
     while (len) {
         ssize_t n = write(fd, buf, len);
@@ -217,7 +262,8 @@ static int write_all(int fd, const char *buf, size_t len) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 4) { fprintf(stderr, "usage: flex-eq IN_FIFO OUT_FIFO CONTROL_FILE\n"); return 2; }
+    if (argc != 4 && argc != 5) { fprintf(stderr, "usage: flex-eq IN_FIFO OUT_FIFO CONTROL_FILE [TAP_FIFO]\n"); return 2; }
+    if (argc == 5) tap_path = argv[4];
     signal(SIGPIPE, SIG_IGN);
     setvbuf(stderr, NULL, _IOLBF, 0);
     a_att = 1.0 - exp(-1.0 / (LA / 5.0));          /* reaches the target within the look-ahead */
@@ -251,6 +297,11 @@ int main(int argc, char **argv) {
             int eq_on = !flat();
             if (!eq_on) was_flat = 1;
             else if (was_flat) { memset(st, 0, sizeof st); was_flat = 0; }
+            if (tap_path) {                 /* vor dem Equalizer: unverändertes Audio */
+                int queued = 0;
+                if (ioctl(out, FIONREAD, &queued) < 0 || queued < 0) queued = 0;
+                tap(pcm, frames, (unsigned int)queued);
+            }
             process(pcm, (int)frames, eq_on);
             size_t bytes = frames * CH * 2;
             if (write_all(out, buf, bytes) < 0) {

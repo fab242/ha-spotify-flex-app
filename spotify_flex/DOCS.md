@@ -43,6 +43,15 @@ Die Integration spricht nur lokal mit der App (127.0.0.1, mit eigenem Token).
 
 Die Kachel **Spotify Flex Flow** ist ein eigenes HACS-Paket: [fab242/spotify-flex-flow-card](https://github.com/fab242/spotify-flex-flow-card) (HACS → Benutzerdefinierte Repositories → Typ *Dashboard*). Alle Einstellungen gibt es im visuellen Editor der Karte.
 
+### Liedtext exakt (Liedtext-Analyse)
+
+Mit dem Container **flex-lyrics-aligner** im Heimnetz (z. B. auf Unraid, Anleitung im Repo [fab242/flex-lyrics-aligner](https://github.com/fab242/flex-lyrics-aligner)) legt eine lokale KI den Liedtext Wort für Wort an die gespielte Aufnahme an. Zeilenwechsel und springender Punkt sitzen dann auf etwa 1/20 s genau.
+
+* Unter *Konfiguration* → *Liedtext-Analyse (Adresse)* die Adresse eintragen, z. B. `http://192.168.0.83:8770`.
+* Jeder Titel wird beim ersten Abspielen analysiert, während er läuft; ab dem zweiten Mal ist er exakt. In Playlists zeigt die Kachel, wie viele Titel schon exakt sind.
+* Vorab (ohne Abspielen) geht es nicht: Spotify gibt das Audio nur während der Wiedergabe heraus, und Mitschneiden verbieten die Spotify-Regeln.
+* Gespeichert werden nur Wortzeiten, kein Audio. Zeilen, bei denen Text und Gesang nicht sicher zusammenpassen, behalten die lrclib-Zeiten.
+
 ### Podcasts
 
 In der Player-Kachel (Bibliothek → Podcasts) lassen sich Podcasts suchen oder per Spotify-Link öffnen, abonnieren und das Abo beenden. In einem Podcast gibt es „Neueste Folge“, „Alles abspielen“ und „Zufällig abspielen“. Jede Folge zeigt Datum, Länge und Hörfortschritt und startet dort, wo du aufgehört hast (im Menü der Folge auch „Von vorn“ und „Folge merken“). Gemerkte Folgen stehen unter „Gespeicherte Folgen“.

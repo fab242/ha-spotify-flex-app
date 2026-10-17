@@ -19,3 +19,9 @@ configuration:
   ha_integration:
     name: Home-Assistant-Player
     description: Installiert die Integration „Spotify Flex Player“ (Player, Lautsprecher, Gruppen als Entitäten für Kacheln und Automationen).
+  lyrics_aligner_url:
+    name: Liedtext-Analyse (Adresse)
+    description: Adresse des Containers flex-lyrics-aligner im Heimnetz, z. B. http://192.168.0.20:8770. Dann sitzen Zeilen und springender Punkt exakt auf dem Gesang. Leer = aus.
+  lyrics_aligner_token:
+    name: Liedtext-Analyse (Token)
+    description: Nur nötig, wenn im Container ALIGNER_TOKEN gesetzt ist.

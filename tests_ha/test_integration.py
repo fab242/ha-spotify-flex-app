@@ -75,6 +75,12 @@ class FakeApp:
             return {"player": self.state["player"]}
         if path == "/api/play":
             return {"ok": True, "warning": None}
+        if path == "/api/lyrics":
+            return {"uri": params.get("uri"), "source": "lrclib", "lines": [{"t": 1000, "text": "Hallo Welt",
+                    "words": [{"w": "Hallo", "s": 1210, "e": 1500}, {"w": "Welt", "s": 1600, "e": 2100}]}],
+                    "text": "", "analysis": "done", "aligned": 1, "total": 1, "exact": True}
+        if path == "/api/lyrics/coverage":
+            return {"available": True, "exact": 1, "total": len(body["uris"])}
         if path == "/api/browse" and params["node"] == "show:S1":
             return {"node": "show:S1", "title": "Lage der Nation", "context_uri": "spotify:show:S1", "total": 2, "items": [
                 {"id": "E1", "uri": "spotify:episode:E1", "type": "episode", "name": "Folge 1", "subtitle": "12. Okt. 2026 · 80 Min. · noch 67 Min.",
@@ -368,3 +374,14 @@ async def test_browse_service_for_card(hass: HomeAssistant, fake: FakeApp) -> No
     assert show["context_uri"] == "spotify:show:S1" and show["next"] is None
     assert ep["subtitle"].startswith("12. Okt. 2026") and ep["resume_ms"] == 754000 and ep["progress"] == 0.157
     assert ep["play_id"] == "spotify:episode:E1|spotify:show:S1"
+
+
+async def test_lyrics_services(hass: HomeAssistant, fake: FakeApp) -> None:
+    await _setup_via_discovery(hass)
+    r = await hass.services.async_call(DOMAIN, "lyrics", {"uri": "spotify:track:T1", "title": "Lied", "duration_ms": 200000},
+                                       blocking=True, return_response=True)
+    assert r["exact"] and r["lines"][0]["words"][1]["s"] == 1600
+    assert fake.calls[-1][1] == "/api/lyrics" and fake.calls[-1][3]["duration_ms"] == "200000"
+    r = await hass.services.async_call(DOMAIN, "lyrics_coverage", {"uris": ["spotify:track:T1", "spotify:track:T2"]},
+                                       blocking=True, return_response=True)
+    assert r == {"available": True, "exact": 1, "total": 2}

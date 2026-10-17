@@ -1,7 +1,8 @@
 #!/command/with-contenv bash
 # Equalizer stage: go-librespot PCM -> flex-eq -> OwnTone pipe. Settings: /run/flex/eq.conf (live).
 if [ -x /usr/bin/flex-eq ]; then
-  exec /usr/bin/flex-eq /run/flex/spotify.raw /music/spotify /run/flex/eq.conf
+  # 4. Argument: Abzweig des unveränderten Audios für die Liedtext-Analyse (nicht-blockierend)
+  exec /usr/bin/flex-eq /run/flex/spotify.raw /music/spotify /run/flex/eq.conf /run/flex/tap.raw
 fi
 echo "[spotify-flex] flex-eq fehlt - Audio wird ohne Equalizer durchgereicht"
 exec bash -c 'while :; do cat /run/flex/spotify.raw > /music/spotify; done'

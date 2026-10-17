@@ -155,6 +155,42 @@
           "description": "Start at this entry (paging)."
         }
       }
+    },
+    "lyrics": {
+      "name": "Lyrics",
+      "description": "Lyrics of a track (default: the current one) from lrclib, with exact word times from the lyrics analysis where available.",
+      "fields": {
+        "uri": {
+          "name": "Track URI",
+          "description": "Empty = current track."
+        },
+        "title": {
+          "name": "Title",
+          "description": "Track name (with URI)."
+        },
+        "artist": {
+          "name": "Artist",
+          "description": "Artist."
+        },
+        "album": {
+          "name": "Album",
+          "description": "Album."
+        },
+        "duration_ms": {
+          "name": "Duration",
+          "description": "Track length in ms."
+        }
+      }
+    },
+    "lyrics_coverage": {
+      "name": "Lyrics coverage",
+      "description": "How many of the given tracks are already analysed exactly.",
+      "fields": {
+        "uris": {
+          "name": "Track URIs",
+          "description": "List of spotify:track:… URIs."
+        }
+      }
     }
   }
 }

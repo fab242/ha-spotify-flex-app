@@ -27,6 +27,7 @@ chmod 666 /music/spotify.metadata
 mkdir -p /run/flex
 [ -p /run/flex/spotify.raw ] || { rm -f /run/flex/spotify.raw; mkfifo /run/flex/spotify.raw; }
 chmod 666 /run/flex/spotify.raw
+[ -p /run/flex/tap.raw ] || { rm -f /run/flex/tap.raw; mkfifo /run/flex/tap.raw; }
 python3 - <<'PY' || echo "0 0 0 0 0 0 0" > /run/flex/eq.conf
 import json
 try:

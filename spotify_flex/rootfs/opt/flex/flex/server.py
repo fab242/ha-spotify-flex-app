@@ -24,6 +24,7 @@ from .groups import GroupStore
 from .speakercfg import SpeakerConfig
 from .eq import Equalizer, EqError
 from .announce import Announcer, MediaPrep
+from .lyricsync import AlignerClient, Lyrics, LyricSync
 from .receiver import Librespot, MetaPipe, OwnTone
 
 logging.basicConfig(level=logging.INFO, format="[spotify-flex] %(levelname)s %(message)s")
@@ -93,6 +94,11 @@ class App:
         self.announcer = Announcer(self.owntone, self.pause_for_announcement, self.activate_group, self.media)
         self.auth = WebAuth(self.session, self.options.get("client_id", ""))
         self.api = SpotifyClient(self.session, self.auth.token)
+        url = str(self.options.get("lyrics_aligner_url") or "").strip()
+        self.lyricsync = LyricSync(self.session, Lyrics(self.session, VERSION),
+                                   AlignerClient(self.session, url, str(self.options.get("lyrics_aligner_token") or "")) if url else None,
+                                   lambda: (self.status, self.status_at))
+        self.lyricsync.start()
         self.tasks = [
             asyncio.create_task(self.receiver.events(self.on_event, self.stop)),
             asyncio.create_task(self.poll_status()),
@@ -137,6 +143,8 @@ class App:
 
     async def shutdown(self, _app: web.Application) -> None:
         self.stop.set()
+        if getattr(self, "lyricsync", None):
+            await self.lyricsync.stop()
         for t in self.tasks:
             t.cancel()
         for ws in list(self.sockets):
@@ -360,6 +368,7 @@ class App:
             "network": self.network_report(),
             "integration": self.integration,
             "announcement": self.announcer.state() if self.announcer else {"active": False, "current": None},
+            "lyrics_analysis": self.lyricsync.health() if getattr(self, "lyricsync", None) else {"configured": False},
         }
 
     @staticmethod
@@ -759,6 +768,25 @@ def build_app() -> web.Application:
         return ok(await speakers_changed())
 
     # ---- Durchsagen (TTS, Nachrichten, Radio-Links) über die AirPlay-Lautsprecher
+    # ---- Liedtexte (lrclib + genaue Wortzeiten aus der Liedtext-Analyse)
+    @r.get("/api/lyrics")
+    async def api_lyrics(request):
+        q = request.query
+        uri = q.get("uri", "")
+        title, artist, album, dur = q.get("title", ""), q.get("artist", ""), q.get("album") or None, q.get("duration_ms")
+        if not uri:  # ohne Angabe: der laufende Titel
+            track = (flex.status or {}).get("track") or {}
+            uri, title = track.get("uri") or "", track.get("name") or ""
+            artist, album, dur = ", ".join(track.get("artist_names") or []), track.get("album_name"), track.get("duration")
+        if not uri or not title:
+            raise ValueError("Titel fehlt")
+        return ok(await flex.lyricsync.for_track(uri, title, artist, album, int(dur) if dur else None))
+
+    @r.post("/api/lyrics/coverage")
+    async def api_lyrics_coverage(request):
+        data = await body(request)
+        return ok(await flex.lyricsync.coverage([str(u) for u in data.get("uris") or []][:2000]))
+
     @r.post("/api/announce")
     async def api_announce(request):
         data = await body(request)

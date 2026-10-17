@@ -102,3 +102,80 @@ def test_bass_boost_keeps_voice_level(binary, tmp_path):
     ref = level(tone(1000))
     out = run(binary, tmp_path, tone(1000), "1 6 4 1 0 0 0\n")
     assert level(out[len(out) // 2:]) - ref > -1.0
+
+
+def test_tap_copies_raw_pcm_with_frame_counter_and_never_blocks(binary, tmp_path):
+    import struct
+    fin, fout, ctl, ftap = tmp_path / "in", tmp_path / "out", tmp_path / "eq.conf", tmp_path / "tap"
+    for f in (fin, fout, ftap):
+        os.mkfifo(f)
+    ctl.write_text("1 6 0 0 0 0 0\n")   # EQ an: der Abzweig muss trotzdem das Original liefern
+    pcm = tone(440, seconds=1.0)
+    proc = subprocess.Popen([str(binary), str(fin), str(fout), str(ctl), str(ftap)], stderr=subprocess.PIPE)
+    out, tapped = bytearray(), bytearray()
+
+    def read(path, sink):
+        with open(path, "rb") as fh:
+            while chunk := fh.read(65536):
+                sink.extend(chunk)
+
+    tap_fd = os.open(ftap, os.O_RDONLY | os.O_NONBLOCK)   # Leser vorhanden, bevor Audio kommt
+    th = threading.Thread(target=read, args=(fout, out))
+    th.start()
+    time.sleep(1.2)                                         # flex-eq öffnet den Abzweig (Retry 1 s)
+    with open(fin, "wb") as fh:
+        fh.write(pcm.tobytes())
+    time.sleep(0.5)
+    while True:
+        try:
+            chunk = os.read(tap_fd, 1 << 20)
+        except BlockingIOError:
+            break
+        if not chunk:
+            break
+        tapped.extend(chunk)
+    os.close(tap_fd)
+    proc.terminate()
+    proc.wait(5)
+    th.join(5)
+    frames, counters, pos = [], [], 0
+    while pos < len(tapped):
+        assert tapped[pos:pos + 4] == b"FXT2"
+        n, idx, queued = struct.unpack_from("<IQI", tapped, pos + 4)
+        assert 0 <= queued <= (1 << 20)
+        assert 20 + n * 4 <= 4096
+        counters.append((idx, n))
+        frames.append(bytes(tapped[pos + 20:pos + 20 + n * 4]))
+        pos += 20 + n * 4
+    raw = np.frombuffer(b"".join(frames), dtype=np.int16)
+    assert np.array_equal(raw, pcm)                          # unverändert, lückenlos
+    assert all(a[0] + a[1] == b[0] for a, b in zip(counters, counters[1:]))
+    assert len(out) == len(pcm) * 2 + LA * 4                 # Wiedergabe vollständig
+
+
+def test_tap_without_reader_does_not_disturb_playback(binary, tmp_path):
+    ftap = tmp_path / "tap_unread"
+    os.mkfifo(ftap)
+    fin, fout, ctl = tmp_path / "in", tmp_path / "out", tmp_path / "eq.conf"
+    for f in (fin, fout):
+        os.mkfifo(f)
+    ctl.write_text("0 0 0 0 0 0 0\n")
+    pcm = tone(1000, seconds=1.0)
+    proc = subprocess.Popen([str(binary), str(fin), str(fout), str(ctl), str(ftap)], stderr=subprocess.PIPE)
+    got = bytearray()
+
+    def reader():
+        with open(fout, "rb") as fh:
+            while chunk := fh.read(65536):
+                got.extend(chunk)
+
+    th = threading.Thread(target=reader)
+    th.start()
+    with open(fin, "wb") as fh:
+        fh.write(pcm.tobytes())
+    time.sleep(0.5)
+    proc.terminate()
+    proc.wait(5)
+    th.join(5)
+    out = np.frombuffer(bytes(got), dtype=np.int16)
+    assert np.array_equal(out[LA * 2:], pcm)

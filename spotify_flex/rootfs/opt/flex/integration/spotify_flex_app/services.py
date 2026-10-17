@@ -96,6 +96,15 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 "context_uri": page.get("context_uri"), "total": page.get("total"),
                 "items": items, "next": f"{NODE}{node}@{nxt}" if nxt else None}
 
+    async def lyrics(call: ServiceCall) -> ServiceResponse:
+        """Liedtext eines Titels (Standard: der laufende) – mit genauen Wortzeiten, soweit analysiert."""
+        params = {k: str(call.data[k]) for k in ("uri", "title", "artist", "album", "duration_ms") if call.data.get(k)}
+        return await _call(hass, "GET", "/api/lyrics", params=params) or {}
+
+    async def lyrics_coverage(call: ServiceCall) -> ServiceResponse:
+        """Wie viele der Titel schon exakt analysiert sind (z. B. für eine Playlist)."""
+        return await _call(hass, "POST", "/api/lyrics/coverage", {"uris": call.data["uris"]}) or {}
+
     async def queue(call: ServiceCall) -> ServiceResponse:
         data = await _call(hass, "GET", "/api/queue") or {}
         cur = data.get("currently_playing")
@@ -189,6 +198,16 @@ def async_setup_services(hass: HomeAssistant) -> None:
         vol.Optional("types"): [vol.In(SEARCH_TYPES)],
     }), supports_response=SupportsResponse.ONLY)
     hass.services.async_register(DOMAIN, "queue", queue, vol.Schema({}), supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(DOMAIN, "lyrics", lyrics, vol.Schema({
+        vol.Optional("uri"): vol.All(cv.string, vol.Match(r"^spotify:[a-z]+:[A-Za-z0-9]+$")),
+        vol.Optional("title"): vol.All(cv.string, vol.Length(max=300)),
+        vol.Optional("artist"): vol.All(cv.string, vol.Length(max=300)),
+        vol.Optional("album"): vol.All(cv.string, vol.Length(max=300)),
+        vol.Optional("duration_ms"): vol.All(vol.Coerce(int), vol.Range(min=0, max=7_200_000)),
+    }), supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(DOMAIN, "lyrics_coverage", lyrics_coverage, vol.Schema({
+        vol.Required("uris"): vol.All([vol.Match(r"^spotify:[a-z]+:[A-Za-z0-9]+$")], vol.Length(max=2000)),
+    }), supports_response=SupportsResponse.ONLY)
     hass.services.async_register(DOMAIN, "browse", browse, vol.Schema({
         vol.Optional("node", default="root"): vol.All(cv.string, vol.Length(max=300)),
         vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100000)),

@@ -69,5 +69,6 @@ RUN find /etc/s6-overlay/s6-rc.d -name run -exec chmod +x {} + \
  && (/usr/sbin/owntone -v || true) \
  && test -x /usr/bin/go-librespot \
  && test -x /usr/bin/flex-eq \
- && ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libmp3lame \
+ && ffmpeg -hide_banner -encoders > /tmp/ffenc 2>/dev/null \
+ && grep -q libmp3lame /tmp/ffenc && rm -f /tmp/ffenc \
  && python3 -c "import aiohttp; print('aiohttp', aiohttp.__version__)"

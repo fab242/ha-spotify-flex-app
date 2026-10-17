@@ -186,3 +186,6 @@
 ## 1.10.1
 - Durchsagen robuster: Jeder Link wird erst heruntergeladen und bei Bedarf mit ffmpeg in eine saubere MP3 umgewandelt (TTS-Streams aus Home Assistant kamen als WAV ohne gültige Länge an und brachten OwnTone zum Absturz – die Tagesschau der Morgenroutine fiel dadurch aus).
 - Stürzt OwnTone während einer Durchsage trotzdem ab, wartet die App auf den Neustart, schaltet die Gruppe wieder ein und spielt den Eintrag erneut.
+
+## 1.10.2
+- Installation von 1.10.1 schlug fehl (Prüfung auf den MP3-Encoder im Bauvorgang brach mit SIGPIPE ab). Behoben.

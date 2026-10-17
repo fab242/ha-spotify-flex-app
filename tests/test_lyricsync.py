@@ -206,3 +206,14 @@ def test_pipe_to_owntone_is_accounted_for():
             res[queued] = [i for i in sent if i[0] == "audio"][0][2][0]
         assert abs((res[65536] - res[0]) - 65536 / 4 / L.RATE * 1000) <= 2, res
     asyncio.run(run())
+
+
+def test_coverage_unavailable_when_container_down():
+    class Down(FakeAligner):
+        async def call(self, *a, **k):
+            return None
+    async def run():
+        sync = L.LyricSync(None, FakeLyrics(LINES), Down(), Clock())
+        r = await sync.coverage(["spotify:track:4uLU6hMCjMI75M1A2tKUQC"])
+        assert r["available"] is False
+    asyncio.run(run())

@@ -197,3 +197,6 @@
 - Liedtext-Analyse: Zusammen mit dem Container [flex-lyrics-aligner](https://github.com/fab242/flex-lyrics-aligner) (z. B. auf Unraid) sitzen Zeilenwechsel und springender Punkt wortgenau auf dem Gesang. Die App zweigt dafür beim Abspielen das Audio ab (flex-eq, nicht-blockierend), ordnet es exakt der Titelposition zu – inklusive der Pipe zu OwnTone – und schickt es stückweise an den Container. Gespeichert werden dort nur Wortzeiten.
 - Jeder Titel wird beim ersten Abspielen automatisch analysiert; danach dauerhaft exakt. Option *Liedtext-Analyse (Adresse)*.
 - Neue Dienste `spotify_flex_app.lyrics` (Liedtext samt Wortzeiten) und `spotify_flex_app.lyrics_coverage` (wie viele Titel einer Liste schon exakt sind).
+
+## 1.11.1
+- Liedtext-Analyse nicht erreichbar: Playlists zeigen dann keine Abdeckung statt „0 von N Titeln“.

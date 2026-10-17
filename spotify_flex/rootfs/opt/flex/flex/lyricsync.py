@@ -365,7 +365,9 @@ class LyricSync:
         ids = {SPOTIFY_TRACK.match(u).group(1): u for u in uris if SPOTIFY_TRACK.match(u or "")}
         if not ids or not (self.aligner and self.aligner.available):
             return {"available": False, "exact": 0, "total": len(ids)}
-        res = await self.aligner.call("POST", "/lookup", json_body={"ids": list(ids)}, timeout=10) or {}
+        res = await self.aligner.call("POST", "/lookup", json_body={"ids": list(ids)}, timeout=10)
+        if res is None:   # Container nicht erreichbar: keine Anzeige statt „0 von N“
+            return {"available": False, "exact": 0, "total": len(ids)}
         tracks = res.get("tracks") or {}
         exact = sum(1 for t in tracks.values() if t.get("complete"))
         return {"available": True, "exact": exact, "total": len(ids),

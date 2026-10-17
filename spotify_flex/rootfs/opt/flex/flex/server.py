@@ -23,7 +23,7 @@ from . import appopts, hassbridge, netheal
 from .groups import GroupStore
 from .speakercfg import SpeakerConfig
 from .eq import Equalizer, EqError
-from .announce import Announcer
+from .announce import Announcer, MediaPrep
 from .receiver import Librespot, MetaPipe, OwnTone
 
 logging.basicConfig(level=logging.INFO, format="[spotify-flex] %(levelname)s %(message)s")
@@ -89,7 +89,8 @@ class App:
         self.session = aiohttp.ClientSession()
         self.receiver = Librespot(self.session)
         self.owntone = OwnTone(self.session)
-        self.announcer = Announcer(self.owntone, self.pause_for_announcement, self.activate_group)
+        self.media = MediaPrep(self.session, f"http://127.0.0.1:{INGRESS_PORT}")
+        self.announcer = Announcer(self.owntone, self.pause_for_announcement, self.activate_group, self.media)
         self.auth = WebAuth(self.session, self.options.get("client_id", ""))
         self.api = SpotifyClient(self.session, self.auth.token)
         self.tasks = [
@@ -379,7 +380,9 @@ def build_app() -> web.Application:
     @web.middleware
     async def guard(request: web.Request, handler):
         peer = request.remote or ""
-        if peer in LOCAL_PEERS:
+        if peer in LOCAL_PEERS and request.path.startswith("/announce-media/"):
+            pass  # OwnTone holt vorbereitete Durchsagen (zufällige Namen, nur lokal) ohne Token
+        elif peer in LOCAL_PEERS:
             auth = request.headers.get("Authorization", "")
             given = auth[7:] if auth.startswith("Bearer ") else request.query.get("token", "")
             if not secrets.compare_digest(given.encode(), flex.token.encode()):
@@ -408,6 +411,14 @@ def build_app() -> web.Application:
 
     def ok(data: Any = None) -> web.Response:
         return web.json_response(data if data is not None else {"ok": True})
+
+    # ---- vorbereitete Durchsagen für OwnTone
+    @r.get("/announce-media/{name}")
+    async def announce_media(request):
+        path = flex.media.path(request.match_info["name"]) if getattr(flex, "media", None) else None
+        if not path:
+            raise web.HTTPNotFound()
+        return web.FileResponse(path, headers={"Cache-Control": "no-store"})
 
     # ---- static UI
     @r.get("/")

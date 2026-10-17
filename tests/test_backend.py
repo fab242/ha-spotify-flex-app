@@ -105,6 +105,10 @@ def test_backend_flow(tmp_path, monkeypatch):
             async with aiohttp.ClientSession() as anon:
                 async with anon.get(base + "api/state") as r:
                     assert r.status == 401  # localhost (= HA core) needs the API token
+                async with anon.get(base + "announce-media/" + "0" * 32 + ".mp3") as r:
+                    assert r.status == 404  # vorbereitete Durchsagen: ohne Token, aber nur vorhandene Dateien
+                async with anon.get(base + "announce-media/../api/state") as r:
+                    assert r.status in (401, 404)
             token = (tmp_path / "api_token").read_text()
             async with aiohttp.ClientSession(headers={"Authorization": f"Bearer {token}"}) as s:
                 async with s.get(base) as r:

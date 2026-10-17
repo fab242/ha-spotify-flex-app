@@ -182,3 +182,7 @@
 - Podcasts: Folgen kommen mit Erscheinungsdatum, Länge und Hörfortschritt („noch 12 Min.“, „angehört“).
 - Weiterhören: Folgen starten an der Stelle, an der du aufgehört hast (`media_content_id` mit `;t=<ms>`), auf Wunsch auch von vorn.
 - Neuer Dienst `spotify_flex_app.browse`: Bibliothek mit Untertiteln, z. B. für die Player-Kachel (ab Spotify Flex Flow 2.2.0).
+
+## 1.10.1
+- Durchsagen robuster: Jeder Link wird erst heruntergeladen und bei Bedarf mit ffmpeg in eine saubere MP3 umgewandelt (TTS-Streams aus Home Assistant kamen als WAV ohne gültige Länge an und brachten OwnTone zum Absturz – die Tagesschau der Morgenroutine fiel dadurch aus).
+- Stürzt OwnTone während einer Durchsage trotzdem ab, wartet die App auf den Neustart, schaltet die Gruppe wieder ein und spielt den Eintrag erneut.

@@ -182,6 +182,10 @@ class OwnTone:
         await _call(self._s, "POST", OWNTONE_URL + "/api/queue/items/add",
                     params={"uris": url, "clear": "true", "playback": "start"}, what="OwnTone")
 
+    async def append_url(self, url: str) -> None:
+        """Append a URL to the end of the queue (plays right after the current item, gapless)."""
+        await _call(self._s, "POST", OWNTONE_URL + "/api/queue/items/add", params={"uris": url}, what="OwnTone")
+
 
 class MetaPipe:
     """Shairport-style metadata pipe next to the audio pipe (<pipe>.metadata).

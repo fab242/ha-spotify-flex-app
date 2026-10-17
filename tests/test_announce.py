@@ -26,6 +26,10 @@ class FakeOwnTone:
         self.log.append(("play", url, {o["id"]: o["volume"] for o in self.outs if o["selected"]}))
         self.until = asyncio.get_running_loop().time() + self.play_for
 
+    async def append_url(self, url):
+        self.log.append(("append", url, {o["id"]: o["volume"] for o in self.outs if o["selected"]}))
+        self.until = max(self.until, asyncio.get_running_loop().time()) + self.play_for
+
     async def player(self):
         return {"state": "play" if asyncio.get_running_loop().time() < self.until else "stop"}
 
@@ -193,4 +197,29 @@ def test_media_prep_converts_streamed_wav_and_serves_clean_mp3(tmp_path):
             assert prep.path(name) is None and prep.path("../etc/passwd") is None
         await runner.cleanup()
     import aiohttp
+    asyncio.run(run())
+
+
+def test_same_volume_items_are_queued_gapless_and_prepared_in_parallel():
+    async def run():
+        ot = FakeOwnTone(play_for=0.4)
+        started = []
+
+        class Prep:
+            async def __call__(self, url):
+                started.append((url, asyncio.get_running_loop().time()))
+                await asyncio.sleep(0.15 if "news" in url else 0.05)
+                return "http://127.0.0.1:8099/announce-media/" + ("b" if "news" in url else "a") * 32 + ".mp3"
+
+            def cleanup(self, local):
+                started.append(("cleanup", local[-36:]))
+
+        an = Announcer(ot, lambda: asyncio.sleep(0), lambda g: asyncio.sleep(0), Prep())
+        res = await an.play([{"url": "http://h/tts", "volume": 40}, {"url": "http://h/news.wav", "volume": 40}])
+        assert res == {"played": 2}
+        kinds = [x[0] for x in ot.log if x[0] in ("play", "append")]
+        assert kinds == ["play", "append"], ot.log           # Tagesschau hängt ohne Neustart an
+        t = [ts for u, ts in started if u.startswith("http://h/")]
+        assert abs(t[1] - t[0]) < 0.05                          # beide sofort vorbereitet
+        assert sum(1 for x in started if x[0] == "cleanup") == 2
     asyncio.run(run())

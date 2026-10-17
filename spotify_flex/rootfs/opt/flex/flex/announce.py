@@ -198,33 +198,56 @@ class Announcer:
         self.active = True
         deadline = time.monotonic() + timeout
         played = 0
+        # alle Einträge sofort parallel vorbereiten: der nächste ist fertig, bevor der aktuelle endet
+        prepared = [asyncio.ensure_future(self.prepare(it["url"])) if self.prepare else None for it in items]
         try:
             await self.pause_spotify()
             outputs = [o for o in await self.owntone.outputs() if o["selected"]]
             if not outputs:
                 raise AnnounceError("Es ist kein Lautsprecher ausgewählt.", 409)
             self._restore = {o["id"]: o["volume"] for o in outputs if isinstance(o.get("volume"), int)}
-            for idx, it in enumerate(items):
-                self.current = {"index": idx, "url": it["url"]}
-                url = await self.prepare(it["url"]) if self.prepare else it["url"]
-                try:
-                    await self._play_item(url, it["volume"], [o["id"] for o in outputs], deadline)
-                finally:
-                    if self.prepare and url != it["url"]:
-                        self.prepare.cleanup(url)
-                played += 1
+            ids = [o["id"] for o in outputs]
+            # aufeinanderfolgende Einträge mit gleicher Lautstärke laufen nahtlos aus einer Warteschlange
+            i = 0
+            while i < len(items):
+                j = i + 1
+                while j < len(items) and items[j]["volume"] == items[i]["volume"]:
+                    j += 1
+                await self._play_batch(list(range(i, j)), items, prepared, ids, deadline)
+                played += j - i
+                i = j
             return {"played": played}
         finally:
+            for fut in prepared:
+                if fut is None:
+                    continue
+                if not fut.done():
+                    fut.cancel()
+                elif not fut.cancelled() and fut.exception() is None:
+                    self.prepare.cleanup(fut.result())
             self.active, self.current = False, None
             await self._restore_volumes()
 
-    async def _play_item(self, url: str, volume: int | None, output_ids: list[str], deadline: float) -> None:
+    async def _local(self, idx: int, items: list[dict], prepared: list) -> str:
+        return await prepared[idx] if prepared[idx] is not None else items[idx]["url"]
+
+    async def _play_batch(self, batch: list[int], items: list[dict], prepared: list,
+                          output_ids: list[str], deadline: float) -> None:
+        volume = items[batch[0]]["volume"]
         for attempt in (0, 1):
             try:
                 if volume is not None:
                     for oid in output_ids:
                         await self.owntone.set_output(oid, volume=volume)
-                await self.owntone.play_url(url)
+                self.current = {"index": batch[0], "url": items[batch[0]]["url"]}
+                await self.owntone.play_url(await self._local(batch[0], items, prepared))
+                for idx in batch[1:]:
+                    url = await self._local(idx, items, prepared)
+                    if (await self.owntone.player()).get("state") == "play":
+                        await self.owntone.append_url(url)   # schließt ohne Pause an
+                    else:                                    # Vorgänger schon zu Ende
+                        await self.owntone.play_url(url)
+                    self.current = {"index": idx, "url": items[idx]["url"]}
                 await self._wait_done(deadline)
                 return
             except SpotifyError as err:

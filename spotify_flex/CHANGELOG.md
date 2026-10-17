@@ -189,3 +189,6 @@
 
 ## 1.10.2
 - Installation von 1.10.1 schlug fehl (Prüfung auf den MP3-Encoder im Bauvorgang brach mit SIGPIPE ab). Behoben.
+
+## 1.10.3
+- Durchsagen ohne Pause zwischen den Teilen: Alle Einträge werden gleich zu Beginn parallel vorbereitet; Einträge mit gleicher Lautstärke laufen direkt hintereinander aus einer Warteschlange (z. B. Begrüßung → Tagesschau).

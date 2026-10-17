@@ -248,3 +248,14 @@ def test_episode_details_for_podcasts():
     long = normalize({**ep, "duration_ms": 7_500_000, "resume_point": {}, "show": {"name": "Lage der Nation"}})
     assert long["subtitle"] == "Lage der Nation · 12. Okt. 2026 · 2 Std. 5 Min."
     assert normalize({**ep, "release_date": "2026-10", "release_date_precision": "month"})["subtitle"].startswith("Okt. 2026")
+
+
+def test_version_numbers_match():
+    import json
+    import re
+    root = Path(__file__).resolve().parents[1] / "spotify_flex"
+    app = re.search(r'^version: "([^"]+)"', (root / "config.yaml").read_text(), re.M).group(1)
+    integ = root / "rootfs/opt/flex/integration/spotify_flex_app"
+    consts = [re.search(r'^VERSION = "([^"]+)"', p.read_text(), re.M).group(1)
+              for p in (root / "rootfs/opt/flex/flex/const.py", integ / "const.py")]
+    assert consts == [app, app] and json.loads((integ / "manifest.json").read_text())["version"] == app
